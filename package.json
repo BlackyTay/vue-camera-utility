@@ -1,0 +1,48 @@
+{
+  "name": "vue-camera-utility",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "A Vue 3 camera utility package for photo capture, QR code and barcode scanning.",
+  "maintainers": [
+    {
+      "email": "tay@outlook.my",
+      "name": "Tay Zheng Qiang"
+    }
+  ],
+  "main": "./dist/vue-camera-utility.umd.js",
+  "module": "./dist/vue-camera-utility.es.js",
+  "exports": {
+    ".": {
+      "import": "./dist/vue-camera-utility.es.js",
+      "require": "./dist/vue-camera-utility.umd.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "prepublishOnly": "npm run build",
+    "tailwind:init": "tailwindcss init -p"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "peerDependencies": {
+    "vue": "^3.5.17"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@vue/runtime-core": "^3.5.17",
+    "@vue/runtime-dom": "^3.5.17",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.0",
+    "vue-tsc": "^3.0.1"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.11",
+    "@vue/compiler-sfc": "^3.5.17"
+  }
+}
