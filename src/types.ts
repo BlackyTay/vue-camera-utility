@@ -21,4 +21,4 @@ export interface CameraConfig {
   thumbnailSize?: { width: number; height: number }
 }
 
-export type CameraMode = 'multiple-photos' | 'barcode' 
+export type CameraMode = 'single-photo' | 'multiple-photos' | 'barcode' 

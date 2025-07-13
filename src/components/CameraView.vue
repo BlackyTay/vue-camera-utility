@@ -4,7 +4,7 @@ import type { CameraConfig, CameraMode, CapturedPhoto } from '@/types'
 import { getGeolocation } from '../utils/geolocation'
 import { generateThumbnailFromCanvas } from '../utils/image'
 import GalleryView from './GalleryView.vue';
-import { barcodeScanWithFallback, scanBarcodeUntilFound } from '../utils/barcode';
+import { scanBarcodeUntilFound } from '../utils/barcode';
 
 const props = defineProps<{
   config?: CameraConfig
@@ -32,6 +32,8 @@ const mergedConfig = computed(() => ({
 const cameraMode = ref<CameraMode | null>(null);
 const showCamera = ref(false)
 const showGallery = ref(false)
+const showGalleryButton = ref(false)
+const showControls = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
@@ -70,9 +72,10 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
         const barcode = await scanBarcode()
         const photo = await takePhoto(barcode ?? undefined)
         closeCamera([photo])
-      } catch (err) {
-        console.error('Barcode scan failed', err)
+      } catch (error) {
+        console.error('Barcode scan failed', error)
         closeCamera([])
+        alert(typeof error === 'string' ? error : 'Barcode scan failed')
       }
     }
 
@@ -95,7 +98,6 @@ const closeCamera = (selected: CapturedPhoto[]) => {
 
 const scanBarcode = async () => {
   if (!videoRef.value) throw new Error("Unexpected error");
-  console.log(videoRef.value);
   return await scanBarcodeUntilFound(videoRef.value)
 }
 const takePhoto = async (barcode?: string) => {
@@ -149,6 +151,9 @@ const takePhoto = async (barcode?: string) => {
 
 const capture = async (barcode?: string) => {
   const capturedPhoto = await takePhoto(barcode ?? undefined)
+  if (mergedConfig.value.cameraMode === 'single-photo') {
+    closeCamera([capturedPhoto])
+  }
   capturedPhotos.value.push(capturedPhoto)
 }
 
@@ -237,6 +242,8 @@ onMounted(async () => {
   updateHeight()
   window.addEventListener('resize', updateHeight)
   preferredDeviceId.value = await getMainRearCameraDeviceId()
+  showControls.value = mergedConfig.value.cameraMode !== 'barcode'
+  showGalleryButton.value = mergedConfig.value.cameraMode === 'multiple-photos'
 })
 
 onBeforeUnmount(() => {
@@ -261,9 +268,9 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Floating Control Bar -->
-    <div class="fixed bottom-0 left-0 right-0 z-50 flex justify-between items-center px-4 py-4 bg-black bg-opacity-80">
+    <div v-if="showControls" class="fixed bottom-0 left-0 right-0 z-50 flex justify-between items-center px-4 py-4 bg-black bg-opacity-80">
       <!-- Gallery Button -->
-      <button v-if="capturedPhotos.length" @click="showGallery = true"
+      <button v-if="capturedPhotos.length > 0 && showGalleryButton" @click="showGallery = true"
         class="w-16 h-16 border-2 border-white overflow-hidden">
         <img :src="capturedPhotos[capturedPhotos.length - 1].thumbnail" class="w-full h-full object-cover"
           alt="Thumbnail" />
@@ -271,7 +278,7 @@ onBeforeUnmount(() => {
       <div v-else class="w-16 h-16"></div>
 
       <!-- Capture Button -->
-      <button @click="() => capture" class="w-16 h-16 rounded-full bg-white shadow-lg"></button>
+      <button @click="() => capture()" class="w-16 h-16 rounded-full bg-white shadow-lg"></button>
 
       <!-- Switch Camera Button -->
       <button v-if="backCameras.length" @click="switchCamera" class="w-16 h-16 flex items-center justify-center">
