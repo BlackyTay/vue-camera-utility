@@ -91,7 +91,7 @@ const capture = async () => {
 }
 
 const confirmGallery = (selected: CapturedPhoto[]) => closeCamera(selected)
-const cancelGallery = () => closeCamera([])
+const cancelGallery = () => showGallery.value = false
 
 const loadVideoDevices = async () => {
   const devices = await navigator.mediaDevices.enumerateDevices()
