@@ -65,11 +65,7 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
       resolveFn = resolve
     })
   } catch (error) {
-    if (error instanceof Error) {
-      alert(error.message)
-    } else {
-      alert('Please ensure location service is enabled.')
-    }
+    alert(typeof error === 'string'  ? error : 'Please ensure location service is enabled.')
     return null
   }
 }
@@ -191,6 +187,7 @@ const startCamera = async (deviceId: string | null) => {
   } catch (err) {
     console.error('Camera access failed:', err)
     showCamera.value = false
+    alert("Camera access failed")
   }
 }
 
