@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import type { CameraConfig, CapturedPhoto } from '@/types'
+import type { CameraConfig, CameraMode, CapturedPhoto } from '@/types'
 import { getGeolocation } from '../utils/geolocation'
 import { generateThumbnailFromCanvas } from '../utils/image'
 import GalleryView from './GalleryView.vue';
+import { barcodeScanWithFallback, scanBarcodeUntilFound } from '../utils/barcode';
 
 const props = defineProps<{
   config?: CameraConfig
 }>()
 
 const defaultConfig: Required<CameraConfig> = {
+  cameraMode: 'multiple-photos',
   imageType: 'image/png',
   imageQuality: 0.80,
   enableGeolocation: true,
@@ -27,6 +29,7 @@ const mergedConfig = computed(() => ({
   ...props.config,
 }))
 
+const cameraMode = ref<CameraMode | null>(null);
 const showCamera = ref(false)
 const showGallery = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
@@ -43,6 +46,7 @@ const currentCameraIndex = ref(0)
 let resolveFn: ((value: CapturedPhoto[]) => void) | null = null
 
 const open = async (): Promise<CapturedPhoto[] | null> => {
+  cameraMode.value = mergedConfig.value.cameraMode
   try {
     await getGeolocation(mergedConfig.value.geolocationOptions)
 
@@ -61,11 +65,22 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
 
     await startCamera(preferredDeviceId.value)
 
+    if (cameraMode.value === 'barcode') {
+      try {
+        const barcode = await scanBarcode()
+        const photo = await takePhoto(barcode ?? undefined)
+        closeCamera([photo])
+      } catch (err) {
+        console.error('Barcode scan failed', err)
+        closeCamera([])
+      }
+    }
+
     return new Promise((resolve) => {
       resolveFn = resolve
     })
   } catch (error) {
-    alert(typeof error === 'string'  ? error : 'Please ensure location service is enabled.')
+    alert(typeof error === 'string' ? error : 'Please ensure location service is enabled.')
     return null
   }
 }
@@ -78,28 +93,31 @@ const closeCamera = (selected: CapturedPhoto[]) => {
   resolveFn = null
 }
 
-const capture = async () => {
-  if (!videoRef.value || !canvasRef.value) return
-
+const scanBarcode = async () => {
+  if (!videoRef.value) throw new Error("Unexpected error");
+  console.log(videoRef.value);
+  return await scanBarcodeUntilFound(videoRef.value)
+}
+const takePhoto = async (barcode?: string) => {
+  if (!videoRef.value || !canvasRef.value) throw new Error("Unexpected error");
+  
   const ctx = canvasRef.value.getContext('2d')
-  if (!ctx) return
-
+  
   canvasRef.value.width = videoRef.value.videoWidth
   canvasRef.value.height = videoRef.value.videoHeight
   ctx?.drawImage(videoRef.value, 0, 0)
-
+  
   const imageType = mergedConfig.value.imageType
   const imageQuality = imageType === 'image/jpeg' ? mergedConfig.value.imageQuality : undefined
-
+  
   const base64 = canvasRef.value.toDataURL(imageType, imageQuality)
-
+  
   // Generate thumbnail if enabled
   let thumbnail = base64
   if (mergedConfig.value.generateThumbnail) {
     thumbnail = await generateThumbnailFromCanvas(canvasRef.value, mergedConfig.value.thumbnailSize)
   }
-
-
+  
   let latitude = ''
   let longitude = ''
   if (mergedConfig.value.enableGeolocation) {
@@ -111,8 +129,8 @@ const capture = async () => {
       console.warn('Geolocation failed', e)
     }
   }
-
-  capturedPhotos.value.push({
+  
+  const capturedPhoto: CapturedPhoto = {
     src: base64,
     thumbnail,
     metadata: {
@@ -120,7 +138,18 @@ const capture = async () => {
       latitude,
       longitude,
     },
-  })
+  }
+  
+  if (barcode) {
+    capturedPhoto.metadata.barcode = barcode
+  }
+
+  return capturedPhoto
+}
+
+const capture = async (barcode?: string) => {
+  const capturedPhoto = await takePhoto(barcode ?? undefined)
+  capturedPhotos.value.push(capturedPhoto)
 }
 
 const confirmGallery = (selected: CapturedPhoto[]) => closeCamera(selected)
@@ -242,7 +271,7 @@ onBeforeUnmount(() => {
       <div v-else class="w-16 h-16"></div>
 
       <!-- Capture Button -->
-      <button @click="capture" class="w-16 h-16 rounded-full bg-white shadow-lg"></button>
+      <button @click="() => capture" class="w-16 h-16 rounded-full bg-white shadow-lg"></button>
 
       <!-- Switch Camera Button -->
       <button v-if="backCameras.length" @click="switchCamera" class="w-16 h-16 flex items-center justify-center">

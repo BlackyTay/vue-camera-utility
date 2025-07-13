@@ -44,14 +44,14 @@ watch(() => props.show, (newVal) => {
             class="flex justify-between items-center px-4 py-2 border-b bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white">
             <!-- Close button -->
             <button @click="cancel" class="">
-                <svg class="m-auto w-12 h-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                <svg class="m-auto w-12 h-12 text-gray-800 dark:text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
             <span class="font-medium text-lg">Gallery</span>
             <button @click="confirm" class="">
-                <svg class="m-auto w-12 h-12 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                <svg class="m-auto w-12 h-12 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                     width="24" height="24" fill="none" viewBox="0 0 24 24">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M5 11.917 9.724 16.5 19 7.5" />
