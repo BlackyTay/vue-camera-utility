@@ -8,7 +8,7 @@ export const getGeolocation = (
     }
 
     navigator.geolocation.getCurrentPosition(resolve, (err) => {
-      reject(err instanceof Error ? err : new Error(String(err)))
+      reject(err.message ? err.message : String(err))
     }, options)
   })
 }
