@@ -75,7 +75,7 @@ watch(() => props.show, (newVal) => {
 
                         <!-- Timestamp -->
                         <div class="absolute bottom-0 left-0 right-0 text-[10px] bg-black/60 text-white px-1 py-0.5">
-                            {{ new Date(photo.timestamp).toLocaleString() }}
+                            {{ new Date(photo.metadata.timestamp).toLocaleString() }}
                         </div>
 
                         <!-- Check icon (optional visual indicator) -->

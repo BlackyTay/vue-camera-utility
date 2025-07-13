@@ -12,30 +12,42 @@ const capturedPhotos = ref<CapturedPhoto[]>([])
 const selectedPhotos = ref<Set<number>>(new Set())
 
 const videoDevices = ref<MediaDeviceInfo[]>([])
+const backCameras = ref<MediaDeviceInfo[]>([])
 const preferredDeviceId = ref<string | null>(null)
 const currentCameraIndex = ref(0)
 
 let resolveFn: ((value: CapturedPhoto[]) => void) | null = null
 
 const open = async (): Promise<CapturedPhoto[] | null> => {
-  showCamera.value = true
-  selectedPhotos.value.clear()
+  try {
+    await getCurrentLocation()
 
-  // Find index of preferred device in list
-  if (preferredDeviceId.value && videoDevices.value.length) {
-    const foundIndex = videoDevices.value.findIndex(
-      d => d.deviceId === preferredDeviceId.value
-    )
-    if (foundIndex !== -1) {
-      currentCameraIndex.value = foundIndex
+    showCamera.value = true
+    selectedPhotos.value.clear()
+
+    // Find index of preferred device in list
+    if (preferredDeviceId.value && backCameras.value.length) {
+      const foundIndex = backCameras.value.findIndex(
+        d => d.deviceId === preferredDeviceId.value
+      )
+      if (foundIndex !== -1) {
+        currentCameraIndex.value = foundIndex
+      }
     }
+
+    await startCamera(preferredDeviceId.value)
+
+    return new Promise((resolve) => {
+      resolveFn = resolve
+    })
+  } catch (error) {
+    if (error instanceof Error) {
+      alert(error.message)
+    } else {
+      alert('Please ensure location service is enabled.')
+    }
+    return null
   }
-
-  await startCamera(preferredDeviceId.value)
-
-  return new Promise((resolve) => {
-    resolveFn = resolve
-  })
 }
 
 const closeCamera = (selected: CapturedPhoto[]) => {
@@ -70,6 +82,28 @@ const generateThumbnail = (src: string): Promise<string> => {
   })
 }
 
+const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported by your browser.'))
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        })
+      },
+      reject,
+      {
+        enableHighAccuracy: true,
+        timeout: 3000,
+        maximumAge: 30000
+      }
+    )
+  })
+}
 
 const capture = async () => {
   if (!videoRef.value || !canvasRef.value) return
@@ -79,13 +113,20 @@ const capture = async () => {
   canvasRef.value.height = videoRef.value.videoHeight
   ctx?.drawImage(videoRef.value, 0, 0)
 
-  const photo = canvasRef.value!.toDataURL('image/jpeg', 0.8)
-  const thumb = await generateThumbnail(photo)
+  const src = canvasRef.value!.toDataURL('image/jpeg', 0.8)
+  const thumbnail = await generateThumbnail(src)
+
+  // Get location
+  const { latitude, longitude } = await getCurrentLocation()
 
   capturedPhotos.value.push({
-    src: photo,
-    thumbnail: thumb,
-    timestamp: new Date().toISOString()
+    src,
+    thumbnail,
+    metadata: {
+      timestamp: new Date().toISOString(),
+      latitude: latitude.toFixed(6),
+      longitude: longitude.toFixed(6),
+    }
   })
 
 }
@@ -96,25 +137,24 @@ const cancelGallery = () => showGallery.value = false
 const loadVideoDevices = async () => {
   const devices = await navigator.mediaDevices.enumerateDevices()
   videoDevices.value = devices.filter(d => d.kind === 'videoinput')
+  backCameras.value = videoDevices.value.filter(d =>
+    /back|rear|environment/i.test(d.label.toLowerCase())
+  )
 }
 const switchCamera = async () => {
-  if (videoDevices.value.length <= 1) return
+  if (backCameras.value.length <= 1) return
 
   // Stop current camera
   stopCamera()
 
   // Move to next camera
-  currentCameraIndex.value = (currentCameraIndex.value + 1) % videoDevices.value.length
-  const nextDeviceId = videoDevices.value[currentCameraIndex.value].deviceId
+  currentCameraIndex.value = (currentCameraIndex.value + 1) % backCameras.value.length
+  const nextDeviceId = backCameras.value[currentCameraIndex.value].deviceId
 
   await startCamera(nextDeviceId)
 }
 
 const getMainRearCameraDeviceId = async () => {
-  // Heuristic: Choose the environment-facing camera with the least index (likely main camera)
-  const backCameras = videoDevices.value.filter(d =>
-    /back|rear|environment/i.test(d.label.toLowerCase())
-  )
   const priorityKeywords = ['zoom', 'tele', 'macro', 'depth', 'ultrawide']
   const score = (label: string) => {
     let s = 0
@@ -133,10 +173,9 @@ const getMainRearCameraDeviceId = async () => {
     return s
   }
 
-  const sorted = backCameras.sort((a, b) => score(a.label) - score(b.label))
-  console.log(sorted)
+  const sorted = backCameras.value.sort((a, b) => score(a.label) - score(b.label))
 
-  return sorted[0]?.deviceId || backCameras[0]?.deviceId || videoDevices.value[0]?.deviceId || null
+  return sorted[0]?.deviceId || backCameras.value[0]?.deviceId || null
 }
 
 const startCamera = async (deviceId: string | null) => {
@@ -213,14 +252,14 @@ onBeforeUnmount(() => {
       <button @click="capture" class="w-16 h-16 rounded-full bg-white shadow-lg"></button>
 
       <!-- Switch Camera Button -->
-      <button @click="switchCamera" class="w-16 h-16 flex items-center justify-center">
+      <button v-if="backCameras.length" @click="switchCamera" class="w-16 h-16 flex items-center justify-center">
         <svg class="m-auto w-12 h-12 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24"
           height="24" fill="none" viewBox="0 0 24 24">
           <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M17.651 7.65a7.131 7.131 0 0 0-12.68 3.15M18.001 4v4h-4m-7.652 8.35a7.13 7.13 0 0 0 12.68-3.15M6 20v-4h4" />
         </svg>
-
       </button>
+      <div v-else class="w-16 h-16"></div>
 
     </div>
 
