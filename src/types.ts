@@ -9,3 +9,12 @@ export interface CapturedPhoto {
   thumbnail: string  // Smaller base64 image
   metadata: PhotoMetadata
 }
+
+export interface CameraConfig {
+  imageType?: 'image/png' | 'image/jpeg'
+  imageQuality?: number // 0.0 to 1.0 (only applies for JPEG)
+  enableGeolocation?: boolean
+  geolocationOptions?: PositionOptions
+  generateThumbnail?: boolean
+  thumbnailSize?: { width: number; height: number }
+}

@@ -1,7 +1,31 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import type { CapturedPhoto } from '@/types'
-import GalleryView from './GalleryView.vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import type { CameraConfig, CapturedPhoto } from '@/types'
+import { getGeolocation } from '../utils/geolocation'
+import { generateThumbnailFromCanvas } from '../utils/image'
+import GalleryView from './GalleryView.vue';
+
+const props = defineProps<{
+  config?: CameraConfig
+}>()
+
+const defaultConfig: Required<CameraConfig> = {
+  imageType: 'image/png',
+  imageQuality: 0.80,
+  enableGeolocation: true,
+  geolocationOptions: {
+    enableHighAccuracy: true,
+    timeout: 3000,
+    maximumAge: 30000,
+  },
+  generateThumbnail: true,
+  thumbnailSize: { width: 160, height: 120 },
+}
+
+const mergedConfig = computed(() => ({
+  ...defaultConfig,
+  ...props.config,
+}))
 
 const showCamera = ref(false)
 const showGallery = ref(false)
@@ -20,7 +44,7 @@ let resolveFn: ((value: CapturedPhoto[]) => void) | null = null
 
 const open = async (): Promise<CapturedPhoto[] | null> => {
   try {
-    await getCurrentLocation()
+    await getGeolocation(mergedConfig.value.geolocationOptions)
 
     showCamera.value = true
     selectedPhotos.value.clear()
@@ -58,77 +82,49 @@ const closeCamera = (selected: CapturedPhoto[]) => {
   resolveFn = null
 }
 
-const generateThumbnail = (src: string): Promise<string> => {
-  const img = new Image()
-  img.src = src
-
-  const thumbCanvas = document.createElement('canvas')
-  const maxSize = 160
-
-  return new Promise<string>((resolve) => {
-    img.onload = () => {
-      const scale = maxSize / img.width
-      const width = maxSize
-      const height = img.height * scale
-
-      thumbCanvas.width = width
-      thumbCanvas.height = height
-
-      const ctx = thumbCanvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0, width, height)
-
-      resolve(thumbCanvas.toDataURL('image/jpeg', 0.7)) // smaller size
-    }
-  })
-}
-
-const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by your browser.'))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        })
-      },
-      reject,
-      {
-        enableHighAccuracy: true,
-        timeout: 3000,
-        maximumAge: 30000
-      }
-    )
-  })
-}
-
 const capture = async () => {
   if (!videoRef.value || !canvasRef.value) return
+
   const ctx = canvasRef.value.getContext('2d')
   if (!ctx) return
+
   canvasRef.value.width = videoRef.value.videoWidth
   canvasRef.value.height = videoRef.value.videoHeight
   ctx?.drawImage(videoRef.value, 0, 0)
 
-  const src = canvasRef.value!.toDataURL('image/jpeg', 0.8)
-  const thumbnail = await generateThumbnail(src)
+  const imageType = mergedConfig.value.imageType
+  const imageQuality = imageType === 'image/jpeg' ? mergedConfig.value.imageQuality : undefined
 
-  // Get location
-  const { latitude, longitude } = await getCurrentLocation()
+  const base64 = canvasRef.value.toDataURL(imageType, imageQuality)
+
+  // Generate thumbnail if enabled
+  let thumbnail = base64
+  if (mergedConfig.value.generateThumbnail) {
+    thumbnail = await generateThumbnailFromCanvas(canvasRef.value, mergedConfig.value.thumbnailSize)
+  }
+
+
+  let latitude = ''
+  let longitude = ''
+  if (mergedConfig.value.enableGeolocation) {
+    try {
+      const position = await getGeolocation(mergedConfig.value.geolocationOptions)
+      latitude = position.coords.latitude.toString()
+      longitude = position.coords.longitude.toString()
+    } catch (e) {
+      console.warn('Geolocation failed', e)
+    }
+  }
 
   capturedPhotos.value.push({
-    src,
+    src: base64,
     thumbnail,
     metadata: {
       timestamp: new Date().toISOString(),
-      latitude: latitude.toFixed(6),
-      longitude: longitude.toFixed(6),
-    }
+      latitude,
+      longitude,
+    },
   })
-
 }
 
 const confirmGallery = (selected: CapturedPhoto[]) => closeCamera(selected)
@@ -226,10 +222,10 @@ onBeforeUnmount(() => {
   <div v-if="showCamera" class="fixed inset-0 z-50 bg-black text-white flex flex-col"
     style="padding-bottom: env(safe-area-inset-bottom);">
     <!-- Close button -->
-    <button @click="showCamera = false" class="absolute top-4 right-4 z-50  rounded-full backdrop-blur-sm">
-      <svg class="m-auto w-12 h-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-        stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+    <button @click="showCamera = false" class="absolute top-4 right-4 z-50">
+      <svg class="m-auto w-12 h-12 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <path d="M6 18L18 6M6 6l12 12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
 
