@@ -40,18 +40,19 @@ watch(() => props.show, (newVal) => {
 <template>
     <div v-if="show" class="absolute inset-0 z-50 bg-white text-black flex flex-col">
         <!-- Header -->
-        <div class="flex justify-between items-center px-4 py-2 border-b bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white">
-            <button @click="cancel" class="text-2xl text-gray-600"><svg class="w-6 h-6 text-gray-800 dark:text-white"
-                    aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"
-                    viewBox="0 0 24 24">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M6 18 17.94 6M18 18 6.06 6" />
+        <div
+            class="flex justify-between items-center px-4 py-2 border-b bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white">
+            <!-- Close button -->
+            <button @click="cancel" class="">
+                <svg class="m-auto w-12 h-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
             <span class="font-medium text-lg">Gallery</span>
-            <button @click="confirm" class="text-2xl text-green-600"><svg class="w-6 h-6 text-gray-800 dark:text-white"
-                    aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"
-                    viewBox="0 0 24 24">
+            <button @click="confirm" class="">
+                <svg class="m-auto w-12 h-12 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                    width="24" height="24" fill="none" viewBox="0 0 24 24">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M5 11.917 9.724 16.5 19 7.5" />
                 </svg>
@@ -63,11 +64,28 @@ watch(() => props.show, (newVal) => {
             <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 <div v-for="(photo, index) in photos" :key="index"
                     class="relative border border-gray-300 rounded overflow-hidden">
-                    <img :src="photo.src" class="w-full h-auto object-cover" />
-                    <input type="checkbox" class="absolute top-1 left-1 w-5 h-5" :checked="selectedPhotos.has(index)"
-                        @change="toggleSelection(index)" />
-                    <div class="absolute bottom-0 left-0 right-0 text-[10px] bg-black/60 text-white px-1 py-0.5">
-                        {{ new Date(photo.timestamp).toLocaleString() }}
+                    <div class="relative border border-gray-300 rounded overflow-hidden cursor-pointer"
+                        @click="toggleSelection(index)">
+                        <!-- Checkbox (invisible but accessible) -->
+                        <input type="checkbox" class="absolute top-1 left-1 w-5 h-5 pointer-events-none"
+                            :checked="selectedPhotos.has(index)" readonly tabindex="-1" />
+
+                        <!-- Image -->
+                        <img :src="photo.src" class="w-full h-auto object-cover" />
+
+                        <!-- Timestamp -->
+                        <div class="absolute bottom-0 left-0 right-0 text-[10px] bg-black/60 text-white px-1 py-0.5">
+                            {{ new Date(photo.timestamp).toLocaleString() }}
+                        </div>
+
+                        <!-- Check icon (optional visual indicator) -->
+                        <div v-if="selectedPhotos.has(index)"
+                            class="absolute top-1 left-1 w-5 h-5 bg-green-500 rounded-sm flex items-center justify-center">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
                     </div>
                 </div>
             </div>
