@@ -11,20 +11,25 @@
   ],
   "main": "./dist/vue-camera-utility.umd.js",
   "module": "./dist/vue-camera-utility.es.js",
+  "types": "./dist/types.d.ts",
+  "style": "./dist/main.css",
   "exports": {
     ".": {
       "import": "./dist/vue-camera-utility.es.js",
       "require": "./dist/vue-camera-utility.umd.js"
+    },
+    "./style": {
+      "default": "./dist/main.css"
     }
+
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vue-tsc --emitDeclarationOnly" ,
     "watch": "vite build --watch",
-    "prepublishOnly": "npm run build",
-    "tailwind:init": "tailwindcss init -p"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [],
   "author": "",

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import type { CameraConfig, CameraMode, CapturedPhoto } from '@/types'
-import { getGeolocation } from '../utils/geolocation'
-import { generateThumbnailFromCanvas } from '../utils/image'
+import {ref, onMounted, onBeforeUnmount, computed} from 'vue'
+import type {CameraConfig, CameraMode, CapturedPhoto} from '@/types'
+import {getGeolocation} from '@/utils/geolocation'
+import {generateThumbnailFromCanvas} from '@/utils/image'
 import GalleryView from './GalleryView.vue';
-import { scanBarcodeUntilFound } from '../utils/barcode';
+import {scanBarcodeUntilFound} from '@/utils/barcode';
+import Base from "@/components/Base.vue";
 
 const props = defineProps<{
   config?: CameraConfig
@@ -21,7 +22,7 @@ const defaultConfig: Required<CameraConfig> = {
     maximumAge: 30000,
   },
   generateThumbnail: true,
-  thumbnailSize: { width: 160, height: 120 },
+  thumbnailSize: {width: 160, height: 120},
 }
 
 const mergedConfig = computed(() => ({
@@ -58,7 +59,7 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
     // Find index of preferred device in list
     if (preferredDeviceId.value && backCameras.value.length) {
       const foundIndex = backCameras.value.findIndex(
-        d => d.deviceId === preferredDeviceId.value
+          d => d.deviceId === preferredDeviceId.value
       )
       if (foundIndex !== -1) {
         currentCameraIndex.value = foundIndex
@@ -102,24 +103,24 @@ const scanBarcode = async () => {
 }
 const takePhoto = async (barcode?: string) => {
   if (!videoRef.value || !canvasRef.value) throw new Error("Unexpected error");
-  
+
   const ctx = canvasRef.value.getContext('2d')
-  
+
   canvasRef.value.width = videoRef.value.videoWidth
   canvasRef.value.height = videoRef.value.videoHeight
   ctx?.drawImage(videoRef.value, 0, 0)
-  
+
   const imageType = mergedConfig.value.imageType
   const imageQuality = imageType === 'image/jpeg' ? mergedConfig.value.imageQuality : undefined
-  
+
   const base64 = canvasRef.value.toDataURL(imageType, imageQuality)
-  
+
   // Generate thumbnail if enabled
   let thumbnail = base64
   if (mergedConfig.value.generateThumbnail) {
     thumbnail = await generateThumbnailFromCanvas(canvasRef.value, mergedConfig.value.thumbnailSize)
   }
-  
+
   let latitude = ''
   let longitude = ''
   if (mergedConfig.value.enableGeolocation) {
@@ -131,7 +132,7 @@ const takePhoto = async (barcode?: string) => {
       console.warn('Geolocation failed', e)
     }
   }
-  
+
   const capturedPhoto: CapturedPhoto = {
     src: base64,
     thumbnail,
@@ -141,7 +142,7 @@ const takePhoto = async (barcode?: string) => {
       longitude,
     },
   }
-  
+
   if (barcode) {
     capturedPhoto.metadata.barcode = barcode
   }
@@ -164,7 +165,7 @@ const loadVideoDevices = async () => {
   const devices = await navigator.mediaDevices.enumerateDevices()
   videoDevices.value = devices.filter(d => d.kind === 'videoinput')
   backCameras.value = videoDevices.value.filter(d =>
-    /back|rear|environment/i.test(d.label.toLowerCase())
+      /back|rear|environment/i.test(d.label.toLowerCase())
   )
 }
 const switchCamera = async () => {
@@ -207,9 +208,9 @@ const getMainRearCameraDeviceId = async () => {
 const startCamera = async (deviceId: string | null) => {
   const constraints: MediaStreamConstraints = {
     video: {
-      deviceId: deviceId ? { exact: deviceId } : undefined,
-      width: { ideal: 4096 },   // try 4K width
-      height: { ideal: 2160 },  // try 4K height
+      deviceId: deviceId ? {exact: deviceId} : undefined,
+      width: {ideal: 4096},   // try 4K width
+      height: {ideal: 2160},  // try 4K height
     }
   }
   try {
@@ -230,7 +231,7 @@ const stopCamera = () => {
   stream?.getTracks().forEach((track) => track.stop())
 }
 
-defineExpose({ open })
+defineExpose({open})
 
 const appHeight = ref(`${window.innerHeight}px`)
 
@@ -252,51 +253,62 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <div v-if="showCamera" class="fixed inset-0 z-50 bg-black text-white flex flex-col"
-    style="padding-bottom: env(safe-area-inset-bottom);">
-    <!-- Close button -->
-    <button @click="showCamera = false" class="absolute top-4 right-4 z-50">
-      <svg class="m-auto w-12 h-12 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
-        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <path d="M6 18L18 6M6 6l12 12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </button>
-
-    <!-- Live Camera View -->
-    <div class="flex-1 relative">
-      <video ref="videoRef" class="w-full h-full object-cover" autoplay playsinline muted></video>
-    </div>
-
-    <!-- Floating Control Bar -->
-    <div v-if="showControls" class="fixed bottom-0 left-0 right-0 z-50 flex justify-between items-center px-4 py-4 bg-black bg-opacity-80">
-      <!-- Gallery Button -->
-      <button v-if="capturedPhotos.length > 0 && showGalleryButton" @click="showGallery = true"
-        class="w-16 h-16 border-2 border-white overflow-hidden">
-        <img :src="capturedPhotos[capturedPhotos.length - 1].thumbnail" class="w-full h-full object-cover"
-          alt="Thumbnail" />
-      </button>
-      <div v-else class="w-16 h-16"></div>
-
-      <!-- Capture Button -->
-      <button @click="() => capture()" class="w-16 h-16 rounded-full bg-white shadow-lg"></button>
-
-      <!-- Switch Camera Button -->
-      <button v-if="backCameras.length" @click="switchCamera" class="w-16 h-16 flex items-center justify-center">
-        <svg class="m-auto w-12 h-12 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24"
-          height="24" fill="none" viewBox="0 0 24 24">
-          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M17.651 7.65a7.131 7.131 0 0 0-12.68 3.15M18.001 4v4h-4m-7.652 8.35a7.13 7.13 0 0 0 12.68-3.15M6 20v-4h4" />
+  <Base>
+    <div v-if="showCamera"
+         class="vcu:fixed vcu:inset-0 vcu:z-50 vcu:bg-black  vcu:dark:bg-black vcu:text-white vcu:dark:text-white vcu:flex vcu:flex-col"
+         style="padding-bottom: env(safe-area-inset-bottom);">
+      <!-- Close button -->
+      <button @click="showCamera = false"
+              class="vcu:absolute vcu:top-4 vcu:right-4 vcu:z-50 vcu:bg-transparent vcu:dark:bg-transparent vcu:border-none vcu:text-white vcu:dark:text-white">
+        <svg
+            class="vcu:m-auto vcu:w-12 vcu:h-12 vcu:text-white vcu:dark:text-white vcu:drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <path d="M6 18L18 6M6 6l12 12" stroke="white" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round"/>
         </svg>
       </button>
-      <div v-else class="w-16 h-16"></div>
 
+      <!-- Live Camera View -->
+      <div class="flex-1 relative">
+        <video ref="videoRef" class="vcu:w-full vcu:h-full vcu:object-fill" autoplay playsinline muted></video>
+      </div>
+
+      <!-- Floating Control Bar -->
+      <div v-if="showControls"
+           class="vcu:fixed vcu:bottom-0 vcu:left-0 vcu:right-0 vcu:z-50 vcu:flex vcu:justify-between vcu:items-center vcu:px-4 vcu:py-4 vcu:bg-black vcu:bg-opacity-80">
+        <!-- Gallery Button -->
+        <button v-if="capturedPhotos.length > 0 && showGalleryButton" @click="showGallery = true"
+                class="vcu:w-16 vcu:h-16 vcu:border-2 vcu:border-white vcu:dark:border-white vcu:overflow-hidden vcu:bg-transparent vcu:dark:bg-transparent vcu:text-white vcu:dark:text-white">
+          <img :src="capturedPhotos[capturedPhotos.length - 1].thumbnail" class="vcu:w-full vcu:h-full vcu:object-cover"
+               alt="Thumbnail"/>
+        </button>
+        <div v-else class="vcu:w-16 vcu:h-16"></div>
+
+        <!-- Capture Button -->
+        <button @click="() => capture()"
+                class="vcu:w-16 vcu:h-16 vcu:rounded-full vcu:bg-white vcu:dark:white vcu:shadow-lg vcu:border-none vcu:text-white vcu:dark:text-white"></button>
+
+        <!-- Switch Camera Button -->
+        <button v-if="backCameras.length" @click="switchCamera"
+                class="vcu:w-16 vcu:h-16 vcu:flex vcu:items-center vcu:justify-center vcu:bg-transparent vcu:dark:bg-transparent vcu:border-none vcu:text-white vcu:dark:text-white">
+          <svg class="vcu:m-auto vcu:w-12 vcu:h-12 vcu:text-white vcu:dark:text-white" aria-hidden="true"
+               xmlns="http://www.w3.org/2000/svg"
+               width="24"
+               height="24" fill="none" viewBox="0 0 24 24">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17.651 7.65a7.131 7.131 0 0 0-12.68 3.15M18.001 4v4h-4m-7.652 8.35a7.13 7.13 0 0 0 12.68-3.15M6 20v-4h4"/>
+          </svg>
+        </button>
+        <div v-else class="vcu:w-16 vcu:h-16"></div>
+
+      </div>
+
+
+      <!-- Gallery Preview -->
+      <GalleryView :photos="capturedPhotos" :show="showGallery" @close="cancelGallery" @confirm="confirmGallery"/>
+
+      <!-- Canvas -->
+      <canvas ref="canvasRef" class="vcu:hidden"></canvas>
     </div>
-
-
-    <!-- Gallery Preview -->
-    <GalleryView :photos="capturedPhotos" :show="showGallery" @close="cancelGallery" @confirm="confirmGallery" />
-
-    <!-- Canvas -->
-    <canvas ref="canvasRef" class="hidden"></canvas>
-  </div>
+  </Base>
 </template>

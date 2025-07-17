@@ -11,8 +11,8 @@ export default defineConfig({
     build: {
         lib: {
             entry: './src/main.ts',
-            name: 'VueCameraView',
-            fileName: (format) => `vue-camera-view.${format}.js`,
+            name: 'VueCameraUtility',
+            fileName: (format) => `vue-camera-utility.${format}.js`,
         },
         rollupOptions: {
             // Exclude Vue from the output bundle
@@ -23,6 +23,7 @@ export default defineConfig({
                 },
             },
         },
+        cssCodeSplit: true,
     },
     resolve: {
         alias: {
