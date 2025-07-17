@@ -51,7 +51,9 @@ let resolveFn: ((value: CapturedPhoto[]) => void) | null = null
 const open = async (): Promise<CapturedPhoto[] | null> => {
   cameraMode.value = mergedConfig.value.cameraMode
   try {
-    await getGeolocation(mergedConfig.value.geolocationOptions)
+    if (mergedConfig.value.enableGeolocation) {
+      await getGeolocation(mergedConfig.value.geolocationOptions)
+    }
 
     showCamera.value = true
     selectedPhotos.value.clear()
@@ -121,13 +123,13 @@ const takePhoto = async (barcode?: string) => {
     thumbnail = await generateThumbnailFromCanvas(canvasRef.value, mergedConfig.value.thumbnailSize)
   }
 
-  let latitude = ''
-  let longitude = ''
+  let latitude: number | undefined = undefined
+  let longitude: number | undefined = undefined
   if (mergedConfig.value.enableGeolocation) {
     try {
       const position = await getGeolocation(mergedConfig.value.geolocationOptions)
-      latitude = position.coords.latitude.toString()
-      longitude = position.coords.longitude.toString()
+      latitude = position.coords.latitude
+      longitude = position.coords.longitude
     } catch (e) {
       console.warn('Geolocation failed', e)
     }
@@ -138,8 +140,10 @@ const takePhoto = async (barcode?: string) => {
     thumbnail,
     metadata: {
       timestamp: new Date().toISOString(),
-      latitude,
-      longitude,
+      coordinate: {
+        latitude,
+        longitude,
+      },
     },
   }
 
