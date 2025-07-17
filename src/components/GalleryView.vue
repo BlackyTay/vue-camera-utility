@@ -1,94 +1,96 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { CapturedPhoto } from '@/types'
+import {ref, watch} from 'vue'
+import type {CapturedPhoto} from '@/types'
 
 const props = defineProps<{
-    photos: CapturedPhoto[]
-    show: boolean
+  photos: CapturedPhoto[]
+  show: boolean
 }>()
 
 const emit = defineEmits<{
-    (e: 'close'): void
-    (e: 'confirm', selected: CapturedPhoto[]): void
+  (e: 'close'): void
+  (e: 'confirm', selected: CapturedPhoto[]): void
 }>()
 
 const selectedPhotos = ref<Set<number>>(new Set())
 
 const toggleSelection = (index: number) => {
-    if (selectedPhotos.value.has(index)) {
-        selectedPhotos.value.delete(index)
-    } else {
-        selectedPhotos.value.add(index)
-    }
+  if (selectedPhotos.value.has(index)) {
+    selectedPhotos.value.delete(index)
+  } else {
+    selectedPhotos.value.add(index)
+  }
 }
 
 const confirm = () => {
-    const selected = [...selectedPhotos.value].map((i) => props.photos[i])
-    emit('confirm', selected)
+  const selected = [...selectedPhotos.value].map((i) => props.photos[i])
+  emit('confirm', selected)
 }
 
 const cancel = () => {
-    selectedPhotos.value.clear()
-    emit('close')
+  selectedPhotos.value.clear()
+  emit('close')
 }
 
 watch(() => props.show, (newVal) => {
-    if (!newVal) selectedPhotos.value.clear()
+  if (!newVal) selectedPhotos.value.clear()
 })
 </script>
 
 <template>
-    <div v-if="show" class="absolute inset-0 z-50 bg-white text-black flex flex-col">
-        <!-- Header -->
-        <div
-            class="flex justify-between items-center px-4 py-2 border-b bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white">
-            <!-- Close button -->
-            <button @click="cancel" class="">
-                <svg class="m-auto w-12 h-12 text-gray-800 dark:text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
-                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-            <span class="font-medium text-lg">Gallery</span>
-            <button @click="confirm" class="">
-                <svg class="m-auto w-12 h-12 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
-                    width="24" height="24" fill="none" viewBox="0 0 24 24">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M5 11.917 9.724 16.5 19 7.5" />
-                </svg>
-            </button>
-        </div>
-
-        <!-- Grid -->
-        <div class="p-4 overflow-y-auto">
-            <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                <div v-for="(photo, index) in photos" :key="index"
-                    class="relative border border-gray-300 rounded overflow-hidden">
-                    <div class="relative border border-gray-300 rounded overflow-hidden cursor-pointer"
-                        @click="toggleSelection(index)">
-                        <!-- Checkbox (invisible but accessible) -->
-                        <input type="checkbox" class="absolute top-1 left-1 w-5 h-5 pointer-events-none"
-                            :checked="selectedPhotos.has(index)" readonly tabindex="-1" />
-
-                        <!-- Image -->
-                        <img :src="photo.src" class="w-full h-auto object-cover" />
-
-                        <!-- Timestamp -->
-                        <div class="absolute bottom-0 left-0 right-0 text-[10px] bg-black/60 text-white px-1 py-0.5">
-                            {{ new Date(photo.metadata.timestamp).toLocaleString() }}
-                        </div>
-
-                        <!-- Check icon (optional visual indicator) -->
-                        <div v-if="selectedPhotos.has(index)"
-                            class="absolute top-1 left-1 w-5 h-5 bg-green-500 rounded-sm flex items-center justify-center">
-                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <div v-if="show" class="vcu:absolute vcu:inset-0 vcu:z-50 vcu:bg-white vcu:text-black vcu:flex vcu:flex-col">
+    <!-- Header -->
+    <div
+        class="vcu:flex vcu:justify-between vcu:items-center vcu:px-4 vcu:py-2 vcu:border-b vcu:bg-gray-100 dark:vcu:bg-gray-800 vcu:text-gray-800 dark:vcu:text-white">
+      <!-- Close button -->
+      <button @click="cancel" class="vcu:bg-transparent vcu:dark:bg-transparent vcu:border-none">
+        <svg class="vcu:m-auto vcu:w-12 vcu:h-12 vcu:text-gray-800 dark:vcu:text-white "
+             xmlns="http://www.w3.org/2000/svg" fill="none"
+             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+      <span class="vcu:font-medium vcu:text-lg">Gallery</span>
+      <button @click="confirm" class="vcu:bg-transparent vcu:dark:bg-transparent vcu:border-none">
+        <svg class="vcu:m-auto vcu:w-12 vcu:h-12 vcu:text-gray-800 dark:vcu:text-white" aria-hidden="true"
+             xmlns="http://www.w3.org/2000/svg"
+             width="24" height="24" fill="none" viewBox="0 0 24 24">
+          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M5 11.917 9.724 16.5 19 7.5"/>
+        </svg>
+      </button>
     </div>
+
+    <!-- Grid -->
+    <div class="vcu:p-4 vcu:overflow-y-auto">
+      <div class="vcu:grid vcu:grid-cols-3 sm:vcu:grid-cols-4 vcu:gap-2">
+        <div v-for="(photo, index) in photos" :key="index"
+             class="vcu:relative vcu:border vcu:border-gray-300 vcu:rounded vcu:overflow-hidden">
+          <div class="vcu:relative vcu:border vcu:border-gray-300 vcu:rounded vcu:overflow-hidden vcu:cursor-pointer"
+               @click="toggleSelection(index)">
+            <input type="checkbox" class="vcu:absolute vcu:top-1 vcu:left-1 vcu:w-5 vcu:h-5 vcu:pointer-events-none"
+                   :checked="selectedPhotos.has(index)" readonly tabindex="-1"/>
+
+            <!-- Image -->
+            <img :src="photo.src" class="vcu:w-full vcu:h-auto vcu:object-fill" alt="captured photo"/>
+
+            <!-- Timestamp -->
+            <div
+                class="vcu:absolute vcu:bottom-0 vcu:left-0 vcu:right-0 vcu:text-[10px] vcu:bg-black/60 vcu:text-white vcu:px-1 vcu:py-0.5">
+              {{ new Date(photo.metadata.timestamp).toLocaleString() }}
+            </div>
+
+            <!-- Check icon (optional visual indicator) -->
+            <div v-if="selectedPhotos.has(index)"
+                 class="vcu:absolute vcu:top-1 vcu:left-1 vcu:w-5 vcu:h-5 vcu:bg-green-500 vcu:rounded-sm vcu:flex vcu:items-center vcu:justify-center">
+              <svg class="vcu:w-3 vcu:h-3 vcu:text-white" fill="none" stroke="currentColor" stroke-width="2"
+                   viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
