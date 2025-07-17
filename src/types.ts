@@ -1,8 +1,11 @@
 export interface PhotoMetadata {
   timestamp: string
-  latitude: string
-  longitude: string
+  coordinate?: Coordinate,
   barcode?: string        // Barcode value
+}
+export interface Coordinate {
+  latitude?: number
+  longitude?: number
 }
 
 export interface CapturedPhoto {
