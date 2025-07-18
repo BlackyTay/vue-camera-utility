@@ -72,7 +72,7 @@ watch(() => props.show, (newVal) => {
                    :checked="selectedPhotos.has(index)" readonly tabindex="-1"/>
 
             <!-- Image -->
-            <img :src="photo.src" class="vcu:w-full vcu:h-auto vcu:object-fill" alt="captured photo"/>
+            <img :src="photo.src" class="vcu:w-full vcu:h-auto vcu:object-cover" alt="captured photo"/>
 
             <!-- Timestamp -->
             <div

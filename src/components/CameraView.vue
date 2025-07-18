@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
 
       <!-- Live Camera View -->
       <div class="flex-1 relative">
-        <video ref="videoRef" class="vcu:w-full vcu:h-full vcu:object-fill" autoplay playsinline muted></video>
+        <video ref="videoRef" class="vcu:w-full vcu:h-full vcu:object-cover" autoplay playsinline muted></video>
       </div>
 
       <!-- Floating Control Bar -->
@@ -283,7 +283,7 @@ onBeforeUnmount(() => {
         <!-- Gallery Button -->
         <button v-if="capturedPhotos.length > 0 && showGalleryButton" @click="showGallery = true"
                 class="vcu:w-16 vcu:h-16 vcu:border-2 vcu:border-white vcu:dark:border-white vcu:overflow-hidden vcu:bg-transparent vcu:dark:bg-transparent vcu:text-white vcu:dark:text-white">
-          <img :src="capturedPhotos[capturedPhotos.length - 1].thumbnail" class="vcu:w-full vcu:h-full vcu:object-fill"
+          <img :src="capturedPhotos[capturedPhotos.length - 1].thumbnail" class="vcu:w-full vcu:h-full vcu:object-cover"
                alt="Thumbnail"/>
         </button>
         <div v-else class="vcu:w-16 vcu:h-16"></div>
