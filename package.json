@@ -11,10 +11,11 @@
   ],
   "main": "./dist/vue-camera-utility.umd.js",
   "module": "./dist/vue-camera-utility.es.js",
-  "types": "./dist/types.d.ts",
+  "types": "./dist/main.d.ts",
   "style": "./dist/main.css",
   "exports": {
     ".": {
+      "types": "./dist/main.d.ts",
       "import": "./dist/vue-camera-utility.es.js",
       "require": "./dist/vue-camera-utility.umd.js"
     },
