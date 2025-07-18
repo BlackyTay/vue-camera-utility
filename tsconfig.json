@@ -16,7 +16,8 @@
       "@/*": ["src/*"]
     },
     "types": ["node"],
-    "declaration": true
+    "declaration": true,
+    "declarationDir": "./dist"
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
   "exclude": ["node_modules", "dist"]
