@@ -22,13 +22,12 @@
     "./style": {
       "default": "./dist/main.css"
     }
-
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "vite build && vue-tsc --emitDeclarationOnly" ,
+    "build": "vite build && vue-tsc --emitDeclarationOnly",
     "watch": "vite build --watch",
     "prepublishOnly": "npm run build"
   },
@@ -39,6 +38,7 @@
     "vue": "^3.5.17"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.11",
     "@types/node": "^24.0.13",
     "@vitejs/plugin-vue": "^5.0.0",
     "@vue/runtime-core": "^3.5.17",
@@ -49,7 +49,6 @@
     "vue-tsc": "^3.0.1"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.11",
     "@vue/compiler-sfc": "^3.5.17",
     "@zxing/library": "^0.21.3"
   }
