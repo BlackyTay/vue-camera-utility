@@ -29,7 +29,6 @@ export interface ExtraConfig {
     geolocation?: PositionOptions
     gallery?: GalleryConfig
     scanner?: ScannerConfig
-    preview?: boolean
     caption?: CaptionConfig
 }
 
@@ -57,6 +56,7 @@ export interface Coordinate {
 export interface GalleryConfig {
     maxPhotos?: number
     maxSelected?: number
+    preview?: boolean
 }
 
 export interface CaptionConfig {

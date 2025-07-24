@@ -25,7 +25,11 @@ const defaultConfig: CameraViewConfig = {
       timeout: 3000,
       maximumAge: 30000,
     },
-    preview: true,
+    gallery: {
+      maxPhotos: 10,
+      maxSelected: 5,
+      preview: true,
+    }
   }
 }
 
@@ -620,7 +624,12 @@ function setViewportMetaForCamera(enable: boolean) {
 
 
       <!-- Gallery Preview -->
-      <GalleryView :photos="capturedPhotos" :show="showGallery" @close="cancelGallery" @confirm="confirmGallery"/>
+      <GalleryView
+          :photos="capturedPhotos"
+          :show="showGallery"
+          :config="props.config?.extra.gallery"
+          @close="cancelGallery"
+          @confirm="confirmGallery"/>
 
       <!-- Canvas -->
       <canvas ref="canvasRef" class="vcu:hidden"></canvas>
