@@ -1,28 +1,32 @@
 <script setup lang="ts">
-import {ref, onMounted, onBeforeUnmount, computed} from 'vue'
-import type {CameraConfig, CameraMode, CapturedPhoto} from '@/types'
+import {ref, onMounted, onBeforeUnmount, computed, watch} from 'vue'
+import type {CameraMode, CameraViewConfig, CapturedPhoto} from '@/types'
 import {getGeolocation} from '@/utils/geolocation'
-import {generateThumbnailFromCanvas} from '@/utils/image'
 import GalleryView from './GalleryView.vue';
 import {scanBarcodeUntilFound} from '@/utils/barcode';
 import Base from "@/components/Base.vue";
 
 const props = defineProps<{
-  config?: CameraConfig
+  config?: CameraViewConfig
 }>()
 
-const defaultConfig: Required<CameraConfig> = {
-  cameraMode: 'multiple-photos',
-  imageType: 'image/png',
-  imageQuality: 0.80,
-  enableGeolocation: true,
-  geolocationOptions: {
-    enableHighAccuracy: true,
-    timeout: 3000,
-    maximumAge: 30000,
+const defaultConfig: CameraViewConfig = {
+  cameraConfig: {
+    cameraMode: 'multiple-photos',
+    cameraFacingMode: 'all',
   },
-  generateThumbnail: true,
-  thumbnailSize: {width: 160, height: 120},
+  imageConfig: {
+    imageType: 'image/jpeg',
+    imageQuality: 0.80,
+  },
+  extra: {
+    geolocation: {
+      enableHighAccuracy: true,
+      timeout: 3000,
+      maximumAge: 30000,
+    },
+    preview: true,
+  }
 }
 
 const mergedConfig = computed(() => ({
@@ -42,43 +46,41 @@ const capturedPhotos = ref<CapturedPhoto[]>([])
 const selectedPhotos = ref<Set<number>>(new Set())
 
 const videoDevices = ref<MediaDeviceInfo[]>([])
-const backCameras = ref<MediaDeviceInfo[]>([])
-const preferredDeviceId = ref<string | null>(null)
+const availableCameras = ref<{
+  index: number,
+  device: MediaDeviceInfo,
+  facingMode?: string,
+  isMainCamera?: boolean,
+  capabilities?: any,
+  resolution?: number
+}[]>([])
 const currentCameraIndex = ref(0)
 
 let resolveFn: ((value: CapturedPhoto[]) => void) | null = null
 
 const open = async (): Promise<CapturedPhoto[] | null> => {
-  cameraMode.value = mergedConfig.value.cameraMode
+  cameraMode.value = mergedConfig.value.cameraConfig.cameraMode
   try {
-    if (mergedConfig.value.enableGeolocation) {
-      await getGeolocation(mergedConfig.value.geolocationOptions)
+    if (mergedConfig.value.extra.geolocation) {
+      await getGeolocation(mergedConfig.value.extra.geolocation)
     }
 
     showCamera.value = true
     selectedPhotos.value.clear()
 
-    // Find index of preferred device in list
-    if (preferredDeviceId.value && backCameras.value.length) {
-      const foundIndex = backCameras.value.findIndex(
-          d => d.deviceId === preferredDeviceId.value
-      )
-      if (foundIndex !== -1) {
-        currentCameraIndex.value = foundIndex
-      }
-    }
-
-    await startCamera(preferredDeviceId.value)
+    await startCamera(availableCameras.value.length > 0 ? availableCameras.value[currentCameraIndex.value].device.deviceId : null)
 
     if (cameraMode.value === 'barcode') {
       try {
         const barcode = await scanBarcode()
         const photo = await takePhoto(barcode ?? undefined)
         closeCamera([photo])
+        return [photo];
       } catch (error) {
         console.error('Barcode scan failed', error)
-        closeCamera([])
         alert(typeof error === 'string' ? error : 'Barcode scan failed')
+        closeCamera([])
+        return [];
       }
     }
 
@@ -100,8 +102,21 @@ const closeCamera = (selected: CapturedPhoto[]) => {
 }
 
 const scanBarcode = async () => {
-  if (!videoRef.value) throw new Error("Unexpected error");
-  return await scanBarcodeUntilFound(videoRef.value)
+  if (!videoRef.value) throw new Error("Camera not accessible");
+
+  const formats: BarcodeFormat[] | undefined =
+      mergedConfig.value.extra.scanner?.formats || undefined;
+
+  const result = await scanBarcodeUntilFound(
+      videoRef.value,
+      formats
+  );
+
+  if (!result) {
+    throw new Error("Barcode detection timed out");
+  }
+
+  return result;
 }
 const takePhoto = async (barcode?: string) => {
   if (!videoRef.value || !canvasRef.value) throw new Error("Unexpected error");
@@ -112,22 +127,16 @@ const takePhoto = async (barcode?: string) => {
   canvasRef.value.height = videoRef.value.videoHeight
   ctx?.drawImage(videoRef.value, 0, 0)
 
-  const imageType = mergedConfig.value.imageType
-  const imageQuality = imageType === 'image/jpeg' ? mergedConfig.value.imageQuality : undefined
+  const imageType = mergedConfig.value.imageConfig?.imageType ?? 'image/jpeg'
+  const imageQuality = imageType === 'image/jpeg' ? mergedConfig.value.imageConfig?.imageQuality : undefined
 
   const base64 = canvasRef.value.toDataURL(imageType, imageQuality)
 
-  // Generate thumbnail if enabled
-  let thumbnail = base64
-  if (mergedConfig.value.generateThumbnail) {
-    thumbnail = await generateThumbnailFromCanvas(canvasRef.value, mergedConfig.value.thumbnailSize)
-  }
-
   let latitude: number | undefined = undefined
   let longitude: number | undefined = undefined
-  if (mergedConfig.value.enableGeolocation) {
+  if (mergedConfig.value.extra.geolocation) {
     try {
-      const position = await getGeolocation(mergedConfig.value.geolocationOptions)
+      const position = await getGeolocation(mergedConfig.value.extra.geolocation)
       latitude = position.coords.latitude
       longitude = position.coords.longitude
     } catch (e) {
@@ -137,7 +146,6 @@ const takePhoto = async (barcode?: string) => {
 
   const capturedPhoto: CapturedPhoto = {
     src: base64,
-    thumbnail,
     metadata: {
       timestamp: new Date().toISOString(),
       coordinate: {
@@ -156,7 +164,7 @@ const takePhoto = async (barcode?: string) => {
 
 const capture = async (barcode?: string) => {
   const capturedPhoto = await takePhoto(barcode ?? undefined)
-  if (mergedConfig.value.cameraMode === 'single-photo') {
+  if (mergedConfig.value.cameraConfig.cameraMode === 'single-photo') {
     closeCamera([capturedPhoto])
   }
   capturedPhotos.value.push(capturedPhoto)
@@ -166,69 +174,190 @@ const confirmGallery = (selected: CapturedPhoto[]) => closeCamera(selected)
 const cancelGallery = () => showGallery.value = false
 
 const loadVideoDevices = async () => {
-  const devices = await navigator.mediaDevices.enumerateDevices()
-  videoDevices.value = devices.filter(d => d.kind === 'videoinput')
-  backCameras.value = videoDevices.value.filter(d =>
-      /back|rear|environment/i.test(d.label.toLowerCase())
-  )
-}
+  try {
+    // Get list of available video devices
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoDevices.value = devices.filter(device => device.kind === 'videoinput');
+
+    // Process and categorize all cameras
+    const camerasList: Array<{
+      index: number,
+      device: MediaDeviceInfo,
+      facingMode?: string,
+      isMainCamera?: boolean,
+      capabilities?: any,
+      resolution?: number
+    }> = [];
+
+    for (let i = 0; i < videoDevices.value.length; i++) {
+      const device = videoDevices.value[i];
+      let facingMode: string | undefined;
+      let isMainCamera = false;
+      let capabilities: any = null;
+      let resolution = 0;
+
+      const labelLower = device.label.toLowerCase();
+
+      // Try to get camera capabilities if supported
+      if ('getCapabilities' in device) {
+        try {
+          capabilities = (device as MediaDeviceInfo & {
+            getCapabilities(): MediaTrackCapabilities
+          }).getCapabilities();
+
+          // Determine facingMode from capabilities
+          if (capabilities && capabilities.facingMode) {
+            if (capabilities.facingMode.includes('user')) {
+              facingMode = 'user';
+            } else if (capabilities.facingMode.includes('environment')) {
+              facingMode = 'environment';
+
+              // Check if it's likely the main camera based on label
+              isMainCamera = labelLower.includes('main') ||
+                  labelLower.includes('wide') ||
+                  labelLower.includes('0') ||
+                  (!labelLower.includes('ultra') &&
+                      !labelLower.includes('tele') &&
+                      !labelLower.includes('zoom'));
+            }
+          }
+
+          // Get max resolution if available
+          resolution = capabilities?.width?.max || 0;
+        } catch (capabilitiesError) {
+          console.warn('Error getting capabilities:', capabilitiesError);
+        }
+      }
+
+      // Fallback to label detection if facingMode not detected by capabilities
+      if (!facingMode) {
+        if (labelLower.includes('front') || labelLower.includes('user') || labelLower.includes('selfie')) {
+          facingMode = 'user';
+        } else if (labelLower.includes('back') || labelLower.includes('rear') || labelLower.includes('environment')) {
+          facingMode = 'environment';
+          isMainCamera = labelLower.includes('main') || labelLower.includes('wide') ||
+              labelLower.includes('0') ||
+              (!labelLower.includes('ultra') && !labelLower.includes('tele') && !labelLower.includes('zoom'));
+        }
+      }
+
+      camerasList.push({
+        index: i,
+        device,
+        facingMode,
+        isMainCamera,
+        capabilities,
+        resolution
+      });
+    }
+
+    // Filter cameras based on the cameraFacingMode config
+    const filteredCameras = mergedConfig.value.cameraConfig.cameraFacingMode === 'all'
+        ? camerasList
+        : camerasList.filter(cam => cam.facingMode === mergedConfig.value.cameraConfig.cameraFacingMode);
+
+    console.log('Available cameras:', filteredCameras)
+    console.log('preferredFacing :', mergedConfig.value.cameraConfig.preferredFacing)
+    console.log('cameraFacingMode :', mergedConfig.value.cameraConfig.cameraFacingMode)
+    // Sort cameras based on preferredFacing if specified
+    if (mergedConfig.value.cameraConfig.preferredFacing) {
+      filteredCameras.sort((a, b) => {
+        // First prioritize cameras matching the preferred facing
+        if (a.facingMode === mergedConfig.value.cameraConfig.preferredFacing && b.facingMode !== mergedConfig.value.cameraConfig.preferredFacing) return -1;
+        if (a.facingMode !== mergedConfig.value.cameraConfig.preferredFacing && b.facingMode === mergedConfig.value.cameraConfig.preferredFacing) return 1;
+
+        // For environment cameras, prioritize main cameras
+        if (a.facingMode === 'environment' && b.facingMode === 'environment') {
+          if (a.isMainCamera && !b.isMainCamera) return -1;
+          if (!a.isMainCamera && b.isMainCamera) return 1;
+
+          // Then prioritize by resolution
+          return (b.resolution || 0) - (a.resolution || 0);
+        }
+
+        return 0;
+      });
+    } else {
+      // Default sorting: prioritize environment cameras, then main cameras, then resolution
+      filteredCameras.sort((a, b) => {
+        // Prioritize environment cameras
+        if (a.facingMode === 'environment' && b.facingMode !== 'environment') return -1;
+        if (a.facingMode !== 'environment' && b.facingMode === 'environment') return 1;
+
+        // For environment cameras, prioritize main cameras
+        if (a.facingMode === 'environment' && b.facingMode === 'environment') {
+          if (a.isMainCamera && !b.isMainCamera) return -1;
+          if (!a.isMainCamera && b.isMainCamera) return 1;
+        }
+
+        // Then sort by resolution
+        return (b.resolution || 0) - (a.resolution || 0);
+      });
+    }
+
+    availableCameras.value = filteredCameras;
+    console.log('Available cameras:', availableCameras.value);
+
+    showControls.value = mergedConfig.value.cameraConfig.cameraMode !== 'barcode'
+    showGalleryButton.value = mergedConfig.value.cameraConfig.cameraMode === 'multiple-photos'
+  } catch (error) {
+    console.error('Error loading video devices:', error);
+    videoDevices.value = [];
+    availableCameras.value = [];
+  }
+};
+
 const switchCamera = async () => {
-  if (backCameras.value.length <= 1) return
+  if (availableCameras.value.length <= 1) return
 
   // Stop current camera
   stopCamera()
 
   // Move to next camera
-  currentCameraIndex.value = (currentCameraIndex.value + 1) % backCameras.value.length
-  const nextDeviceId = backCameras.value[currentCameraIndex.value].deviceId
+  currentCameraIndex.value = (currentCameraIndex.value + 1) % availableCameras.value.length
+  const nextDeviceId = availableCameras.value[currentCameraIndex.value].device.deviceId
 
   await startCamera(nextDeviceId)
-}
-
-const getMainRearCameraDeviceId = async () => {
-  const priorityKeywords = ['zoom', 'tele', 'macro', 'depth', 'ultrawide']
-  const score = (label: string) => {
-    let s = 0
-
-    // Lower score is better (camera2 0 = high priority)
-    const match = label.match(/camera\d*\s*(\d+)/i)
-    if (match) {
-      s += parseInt(match[1], 10)
-    }
-
-    // Penalize undesired lenses
-    if (priorityKeywords.some(kw => label.toLowerCase().includes(kw))) {
-      s += 100
-    }
-
-    return s
-  }
-
-  const sorted = backCameras.value.sort((a, b) => score(a.label) - score(b.label))
-
-  return sorted[0]?.deviceId || backCameras.value[0]?.deviceId || null
 }
 
 const startCamera = async (deviceId: string | null) => {
   const constraints: MediaStreamConstraints = {
     video: {
       deviceId: deviceId ? {exact: deviceId} : undefined,
-      width: {ideal: 4096},   // try 4K width
-      height: {ideal: 2160},  // try 4K height
+      // Use config resolution if provided, otherwise default to 4K
+      width: mergedConfig.value.cameraConfig.resolution?.width
+          ? {ideal: mergedConfig.value.cameraConfig.resolution.width}
+          : {ideal: 4096},
+      height: mergedConfig.value.cameraConfig.resolution?.height
+          ? {ideal: mergedConfig.value.cameraConfig.resolution.height}
+          : {ideal: 2160},
+      aspectRatio: mergedConfig.value.cameraConfig.resolution?.aspectRatio
+          ? {ideal: mergedConfig.value.cameraConfig.resolution.aspectRatio}
+          : undefined,
     }
+  };
+
+  // Also respect frameRate settings if provided
+  if (mergedConfig.value.cameraConfig.frameRate) {
+    (constraints.video as MediaTrackConstraints).frameRate = {
+      ideal: mergedConfig.value.cameraConfig.frameRate.ideal,
+      min: mergedConfig.value.cameraConfig.frameRate.min,
+      max: mergedConfig.value.cameraConfig.frameRate.max,
+    };
   }
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints)
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     if (videoRef.value) {
-      videoRef.value.srcObject = stream
-      videoRef.value.play()
+      videoRef.value.srcObject = stream;
+      videoRef.value.play();
     }
   } catch (err) {
-    console.error('Camera access failed:', err)
-    showCamera.value = false
-    alert("Camera access failed")
+    console.error('Camera access failed:', err);
+    showCamera.value = false;
+    alert("Camera access failed");
   }
-}
+};
 
 const stopCamera = () => {
   const stream = videoRef.value?.srcObject as MediaStream
@@ -246,15 +375,55 @@ onMounted(async () => {
   await loadVideoDevices()
   updateHeight()
   window.addEventListener('resize', updateHeight)
-  preferredDeviceId.value = await getMainRearCameraDeviceId()
-  showControls.value = mergedConfig.value.cameraMode !== 'barcode'
-  showGalleryButton.value = mergedConfig.value.cameraMode === 'multiple-photos'
 })
 
 onBeforeUnmount(() => {
   stopCamera()
   window.removeEventListener('resize', updateHeight)
 })
+
+// In CameraView.vue, update the watcher to correctly access nested properties
+watch(
+  () => props.config,
+  async (newConfig, oldConfig) => {
+    // Check if camera-related config has changed
+    const newCameraConfig = newConfig?.cameraConfig;
+    const oldCameraConfig = oldConfig?.cameraConfig;
+    
+    const hasCameraConfigChanged = 
+      newCameraConfig?.cameraFacingMode !== oldCameraConfig?.cameraFacingMode ||
+      newCameraConfig?.preferredFacing !== oldCameraConfig?.preferredFacing ||
+      newCameraConfig?.cameraMode !== oldCameraConfig?.cameraMode;
+
+    if (hasCameraConfigChanged) {
+      console.log('Camera configuration changed, reloading devices');
+      
+      // If camera is currently active, we need to stop it first
+      if (showCamera.value) {
+        stopCamera();
+      }
+      
+      // Reset camera index to ensure we start with the most appropriate camera
+      currentCameraIndex.value = 0;
+      
+      // Reload video devices with new configuration
+      await loadVideoDevices();
+      
+      // If camera was active, restart it with the new configuration
+      if (showCamera.value) {
+        const deviceId = availableCameras.value.length > 0 
+          ? availableCameras.value[currentCameraIndex.value].device.deviceId 
+          : null;
+        await startCamera(deviceId);
+      }
+    }
+  },
+  { 
+    deep: true,
+    immediate: false
+  }
+);
+
 </script>
 <template>
   <Base>
@@ -283,7 +452,7 @@ onBeforeUnmount(() => {
         <!-- Gallery Button -->
         <button v-if="capturedPhotos.length > 0 && showGalleryButton" @click="showGallery = true"
                 class="vcu:w-16 vcu:h-16 vcu:border-2 vcu:border-white vcu:dark:border-white vcu:overflow-hidden vcu:bg-transparent vcu:dark:bg-transparent vcu:text-white vcu:dark:text-white">
-          <img :src="capturedPhotos[capturedPhotos.length - 1].thumbnail" class="vcu:w-full vcu:h-full vcu:object-cover"
+          <img :src="capturedPhotos[capturedPhotos.length - 1].src" class="vcu:w-full vcu:h-full vcu:object-cover"
                alt="Thumbnail"/>
         </button>
         <div v-else class="vcu:w-16 vcu:h-16"></div>
@@ -293,7 +462,7 @@ onBeforeUnmount(() => {
                 class="vcu:w-16 vcu:h-16 vcu:rounded-full vcu:bg-white vcu:dark:white vcu:shadow-lg vcu:border-none vcu:text-white vcu:dark:text-white"></button>
 
         <!-- Switch Camera Button -->
-        <button v-if="backCameras.length" @click="switchCamera"
+        <button v-if="availableCameras.length > 1" @click="switchCamera"
                 class="vcu:w-16 vcu:h-16 vcu:flex vcu:items-center vcu:justify-center vcu:bg-transparent vcu:dark:bg-transparent vcu:border-none vcu:text-white vcu:dark:text-white">
           <svg class="vcu:m-auto vcu:w-12 vcu:h-12 vcu:text-white vcu:dark:text-white" aria-hidden="true"
                xmlns="http://www.w3.org/2000/svg"
