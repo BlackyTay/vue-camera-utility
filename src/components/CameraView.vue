@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref, onMounted, onBeforeUnmount, computed, watch} from 'vue'
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import type {CameraMode, CameraViewConfig, CapturedPhoto} from '@/types'
 import {getGeolocation} from '@/utils/geolocation'
 import GalleryView from './GalleryView.vue';
@@ -417,6 +417,21 @@ const updateHeight = () => {
 onMounted(async () => {
   updateHeight()
   window.addEventListener('resize', updateHeight)
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
+  if (isIOS) {
+    // For iOS devices, add these meta tags dynamically
+    const metaTag = document.createElement('meta');
+    metaTag.name = 'apple-mobile-web-app-capable';
+    metaTag.content = 'yes';
+    document.head.appendChild(metaTag);
+
+    // Force hardware acceleration on iOS
+    if (videoRef.value) {
+      videoRef.value.style.transform = 'translateZ(0)';
+    }
+  }
 })
 
 onBeforeUnmount(() => {
@@ -470,7 +485,7 @@ watch(
 <template>
   <Base>
     <div v-if="showCamera"
-         class="vcu:fixed vcu:inset-0 vcu:z-50 vcu:bg-black  vcu:dark:bg-black vcu:text-white vcu:dark:text-white vcu:flex vcu:flex-col"
+         class="vcu:fixed vcu:inset-0 vcu:z-50 vcu:bg-black  vcu:dark:bg-black vcu:text-white vcu:dark:text-white vcu:flex vcu:flex-col vcu:overflow-hidden vcu:touch-manipulation vcu:select-none"
          style="padding-bottom: env(safe-area-inset-bottom);">
       <!-- Close button -->
       <button @click="showCamera = false"
@@ -485,7 +500,10 @@ watch(
 
       <!-- Live Camera View -->
       <div class="flex-1 relative">
-        <video ref="videoRef" class="vcu:w-full vcu:h-full vcu:object-cover" autoplay playsinline muted></video>
+        <video ref="videoRef" class="vcu:w-full vcu:h-full vcu:object-cover"
+               autoplay playsinline muted
+               @contextmenu.prevent
+        ></video>
       </div>
 
       <!-- Floating Control Bar -->
@@ -494,8 +512,11 @@ watch(
         <!-- Gallery Button -->
         <button v-if="capturedPhotos.length > 0 && showGalleryButton" @click="showGallery = true"
                 class="vcu:w-16 vcu:h-16 vcu:border-2 vcu:border-white vcu:dark:border-white vcu:overflow-hidden vcu:bg-transparent vcu:dark:bg-transparent vcu:text-white vcu:dark:text-white">
-          <img :src="capturedPhotos[capturedPhotos.length - 1].src" class="vcu:w-full vcu:h-full vcu:object-cover"
-               alt="Thumbnail"/>
+          <img :src="capturedPhotos[capturedPhotos.length - 1].src" class="vcu:w-full vcu:h-full vcu:object-cover vcu:pointer-events-none vcu:select-none"
+               alt="Thumbnail"
+               draggable="false"
+               aria-role="presentation"
+          />
         </button>
         <div v-else class="vcu:w-16 vcu:h-16"></div>
 
