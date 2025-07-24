@@ -78,7 +78,6 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
         return [photo];
       } catch (error) {
         console.error('Barcode scan failed', error)
-        alert(typeof error === 'string' ? error : 'Barcode scan failed')
         closeCamera([])
         return [];
       }
@@ -88,7 +87,8 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
       resolveFn = resolve
     })
   } catch (error) {
-    alert(typeof error === 'string' ? error : 'Please ensure location service is enabled.')
+    alert(typeof error === 'string' ? error :
+        (error instanceof Error ? error.message : 'Unexpected error.'))
     return null
   }
 }
@@ -355,7 +355,7 @@ const startCamera = async (deviceId: string | null) => {
   } catch (err) {
     console.error('Camera access failed:', err);
     showCamera.value = false;
-    alert("Camera access failed");
+    alert(err instanceof Error ? err.message : "Camera access failed");
   }
 };
 

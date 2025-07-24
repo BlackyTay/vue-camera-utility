@@ -60,7 +60,6 @@ export function startBarcodeScanner(
             }
         } catch (err) {
             console.error('Barcode scan failed', err);
-            alert(err instanceof Error ? err.message : 'Barcode scan failed');
 
             // Call onError if provided
             if (onError && err instanceof Error) {
