@@ -27,9 +27,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "vite build && vue-tsc --emitDeclarationOnly",
-    "watch": "vite build --watch",
-    "prepublishOnly": "npm run build"
+    "build:dev": "vite build --mode development && vue-tsc --emitDeclarationOnly",
+    "build:prod": "vite build --mode production && vue-tsc --emitDeclarationOnly",
+    "build": "npm run build:prod",
+    "watch": "vite build --watch --mode development",
+    "prepublishOnly": "npm run build:prod"
   },
   "keywords": [],
   "author": "",
@@ -44,6 +46,7 @@
     "@vue/runtime-core": "^3.5.17",
     "@vue/runtime-dom": "^3.5.17",
     "tailwindcss": "^4.1.11",
+    "terser": "^5.43.1",
     "typescript": "^5.8.3",
     "vite": "^5.4.0",
     "vue-tsc": "^3.0.1"
