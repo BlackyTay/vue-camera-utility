@@ -3,31 +3,42 @@ import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const isProd = mode === 'production';
+  
+  return {
     plugins: [
-        vue(),
-        tailwindcss(),
+      vue(),
+      tailwindcss(),
     ],
     build: {
-        lib: {
-            entry: './src/main.ts',
-            name: 'VueCameraUtility',
-            fileName: (format) => `vue-camera-utility.${format}.js`,
+      lib: {
+        entry: './src/main.ts',
+        name: 'VueCameraUtility',
+        fileName: (format) => `vue-camera-utility.${format}.js`,
+      },
+      rollupOptions: {
+        external: ['vue'],
+        output: {
+          globals: {
+            vue: 'Vue',
+          },
         },
-        rollupOptions: {
-            // Exclude Vue from the output bundle
-            external: ['vue'],
-            output: {
-                globals: {
-                    vue: 'Vue',
-                },
-            },
-        },
-        cssCodeSplit: true,
+      },
+      cssCodeSplit: true,
+      minify: isProd ? 'terser' : false,
+      terserOptions: isProd ? {
+        compress: {
+          drop_console: true,
+          drop_debugger: true,
+        }
+      } : undefined,
+      sourcemap: !isProd,
     },
     resolve: {
-        alias: {
-            '@': fileURLToPath(new URL('./src', import.meta.url)),
-        }
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      }
     }
+  };
 });
