@@ -227,6 +227,7 @@ const loadVideoDevices = async () => {
           resolution = capabilities?.width?.max || 0;
         } catch (capabilitiesError) {
           console.warn('Error getting capabilities:', capabilitiesError);
+          alert(capabilitiesError instanceof Error ? capabilitiesError.message : 'Error getting capabilities.')
         }
       }
 
@@ -359,6 +360,12 @@ const startCamera = async (deviceId?: string) => {
 };
 
 const initCamera = async (deviceId?: string) => {
+  // To utilize sorting algorithm from loadVideoDevices() when device id is not provided
+  // Need to provide the device id for camera switching
+  if (!deviceId) {
+    deviceId = availableCameras.value.length > 0 ? availableCameras.value[0].device.deviceId : undefined;
+  }
+
   const specificConstraints: MediaStreamConstraints = {
     video: {
       deviceId: deviceId ? {exact: deviceId} : undefined,
@@ -408,7 +415,6 @@ const updateHeight = () => {
   appHeight.value = `${window.innerHeight}px`
 }
 onMounted(async () => {
-  await loadVideoDevices()
   updateHeight()
   window.addEventListener('resize', updateHeight)
 })
