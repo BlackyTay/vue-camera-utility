@@ -432,6 +432,9 @@ onMounted(async () => {
       videoRef.value.style.transform = 'translateZ(0)';
     }
   }
+
+  // Set initial viewport meta
+  setViewportMetaForCamera(showCamera.value);
 })
 
 onBeforeUnmount(() => {
@@ -481,6 +484,82 @@ watch(
     }
 );
 
+watch(showCamera, (isVisible) => {
+  if (isVisible) {
+    // Camera became visible
+    setViewportMetaForCamera(true);
+    resetZoomLevel();
+
+    // Add event listeners to prevent zoom
+    document.addEventListener('touchstart', preventZoomGesture, { passive: false });
+    document.addEventListener('touchmove', preventZoomGesture, { passive: false });
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
+    // For iOS 15+ double-tap prevention
+    (document.documentElement.style as any)['-webkit-touch-callout'] = 'none';
+    (document.documentElement.style as any)['-webkit-user-select'] = 'none';
+  } else {
+    // Camera was hidden
+    setViewportMetaForCamera(false);
+
+    // Remove the event listeners
+    document.removeEventListener('touchstart', preventZoomGesture);
+    document.removeEventListener('touchmove', preventZoomGesture);
+    document.removeEventListener('gesturestart', (e) => e.preventDefault());
+    document.removeEventListener('gesturechange', (e) => e.preventDefault());
+    document.removeEventListener('gestureend', (e) => e.preventDefault());
+
+    // Restore normal touch behavior
+    (document.documentElement.style as any)['-webkit-touch-callout'] = '';
+    (document.documentElement.style as any)['-webkit-user-select'] = '';
+  }
+});
+// Add these variables to track touch events
+let lastTouchDistance = 0;
+
+// Prevent pinch zoom on the camera view
+function preventZoomGesture(event: TouchEvent) {
+  // Only prevent if the camera is active
+  if (!showCamera.value) return;
+
+  // For pinch gestures (2 fingers)
+  if (event.touches.length >= 2) {
+    event.preventDefault();
+  }
+}
+
+// Reset zoom level if it has changed
+function resetZoomLevel() {
+  // This forces a visual refresh that can help reset zoom
+  document.body.style.minHeight = '101vh';
+  setTimeout(() => {
+    document.body.style.minHeight = '';
+  }, 30);
+}
+
+// Add these functions to your script setup
+function setViewportMetaForCamera(enable: boolean) {
+  console.log('setViewportMetaForCamera :', enable)
+  // Find existing viewport meta tag or create a new one
+  let viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (!viewportMeta) {
+    viewportMeta = document.createElement('meta');
+    viewportMeta.setAttribute('name', 'viewport');
+    document.head.appendChild(viewportMeta);
+  }
+  
+  if (enable) {
+    // When camera is active: Prevent zoom, set initial scale
+    viewportMeta.setAttribute('content', 
+      'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+  } else {
+    // When camera is inactive: Restore normal behavior
+    viewportMeta.setAttribute('content', 
+      'width=device-width, initial-scale=1.0');
+  }
+}
 </script>
 <template>
   <Base>
