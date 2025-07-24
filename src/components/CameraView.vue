@@ -56,6 +56,8 @@ const availableCameras = ref<{
 }[]>([])
 const currentCameraIndex = ref(0)
 
+const cameraReady = ref(false)
+
 let resolveFn: ((value: CapturedPhoto[]) => void) | null = null
 
 const open = async (): Promise<CapturedPhoto[] | null> => {
@@ -65,10 +67,9 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
       await getGeolocation(mergedConfig.value.extra.geolocation)
     }
 
-    showCamera.value = true
     selectedPhotos.value.clear()
 
-    await startCamera(availableCameras.value.length > 0 ? availableCameras.value[currentCameraIndex.value].device.deviceId : null)
+    await startCamera(availableCameras.value.length > 0 ? availableCameras.value[currentCameraIndex.value].device.deviceId : undefined)
 
     if (cameraMode.value === 'barcode') {
       try {
@@ -309,7 +310,7 @@ const loadVideoDevices = async () => {
 
 const switchCamera = async () => {
   if (availableCameras.value.length <= 1) return
-
+  console.log("currentCameraIndex.value :", currentCameraIndex.value)
   // Stop current camera
   stopCamera()
 
@@ -317,11 +318,48 @@ const switchCamera = async () => {
   currentCameraIndex.value = (currentCameraIndex.value + 1) % availableCameras.value.length
   const nextDeviceId = availableCameras.value[currentCameraIndex.value].device.deviceId
 
+  console.log('Switching to camera:', nextDeviceId)
+
   await startCamera(nextDeviceId)
 }
 
-const startCamera = async (deviceId: string | null) => {
-  const constraints: MediaStreamConstraints = {
+const startCamera = async (deviceId?: string) => {
+  try {
+    console.log('Starting camera:', deviceId)
+    if (cameraReady.value) {
+      await initCamera(deviceId)
+    } else {
+      showCamera.value = false
+      // First, request basic camera access with minimal constraints
+      const initialConstraints: MediaStreamConstraints = {
+        video: true,
+        audio: false
+      };
+      const initialStream = await navigator.mediaDevices.getUserMedia(initialConstraints);
+      if (videoRef.value) {
+        videoRef.value.srcObject = initialStream;
+        await videoRef.value.play();
+      }
+
+      setTimeout(async () => {
+        initialStream.getTracks().forEach((track) => track.stop())
+
+        await loadVideoDevices();
+
+        await startCamera(deviceId);
+      }, 1000)
+
+      cameraReady.value = true;
+    }
+  } catch (err) {
+    console.error('Camera access failed:', err);
+    showCamera.value = false;
+    alert(err instanceof Error ? err.message : "Camera access failed");
+  }
+};
+
+const initCamera = async (deviceId?: string) => {
+  const specificConstraints: MediaStreamConstraints = {
     video: {
       deviceId: deviceId ? {exact: deviceId} : undefined,
       // Use config resolution if provided, otherwise default to 4K
@@ -339,25 +377,23 @@ const startCamera = async (deviceId: string | null) => {
 
   // Also respect frameRate settings if provided
   if (mergedConfig.value.cameraConfig.frameRate) {
-    (constraints.video as MediaTrackConstraints).frameRate = {
+    (specificConstraints.video as MediaTrackConstraints).frameRate = {
       ideal: mergedConfig.value.cameraConfig.frameRate.ideal,
       min: mergedConfig.value.cameraConfig.frameRate.min,
       max: mergedConfig.value.cameraConfig.frameRate.max,
     };
   }
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    if (videoRef.value) {
-      videoRef.value.srcObject = stream;
-      videoRef.value.play();
-    }
-  } catch (err) {
-    console.error('Camera access failed:', err);
-    showCamera.value = false;
-    alert(err instanceof Error ? err.message : "Camera access failed");
+  showCamera.value = true
+
+  const stream = await navigator.mediaDevices.getUserMedia(specificConstraints);
+  if (videoRef.value) {
+    videoRef.value.srcObject = stream;
+    videoRef.value.play();
+  } else {
+    console.error('Video element not found');
   }
-};
+}
 
 const stopCamera = () => {
   const stream = videoRef.value?.srcObject as MediaStream
@@ -384,44 +420,44 @@ onBeforeUnmount(() => {
 
 // In CameraView.vue, update the watcher to correctly access nested properties
 watch(
-  () => props.config,
-  async (newConfig, oldConfig) => {
-    // Check if camera-related config has changed
-    const newCameraConfig = newConfig?.cameraConfig;
-    const oldCameraConfig = oldConfig?.cameraConfig;
-    
-    const hasCameraConfigChanged = 
-      newCameraConfig?.cameraFacingMode !== oldCameraConfig?.cameraFacingMode ||
-      newCameraConfig?.preferredFacing !== oldCameraConfig?.preferredFacing ||
-      newCameraConfig?.cameraMode !== oldCameraConfig?.cameraMode;
+    () => props.config,
+    async (newConfig, oldConfig) => {
+      // Check if camera-related config has changed
+      const newCameraConfig = newConfig?.cameraConfig;
+      const oldCameraConfig = oldConfig?.cameraConfig;
 
-    if (hasCameraConfigChanged) {
-      console.log('Camera configuration changed, reloading devices');
-      
-      // If camera is currently active, we need to stop it first
-      if (showCamera.value) {
-        stopCamera();
+      const hasCameraConfigChanged =
+          newCameraConfig?.cameraFacingMode !== oldCameraConfig?.cameraFacingMode ||
+          newCameraConfig?.preferredFacing !== oldCameraConfig?.preferredFacing ||
+          newCameraConfig?.cameraMode !== oldCameraConfig?.cameraMode;
+
+      if (hasCameraConfigChanged) {
+        console.log('Camera configuration changed, reloading devices');
+
+        // If camera is currently active, we need to stop it first
+        if (showCamera.value) {
+          stopCamera();
+        }
+
+        // Reset camera index to ensure we start with the most appropriate camera
+        currentCameraIndex.value = 0;
+
+        // Reload video devices with new configuration
+        await loadVideoDevices();
+
+        // If camera was active, restart it with the new configuration
+        if (showCamera.value) {
+          const deviceId = availableCameras.value.length > 0
+              ? availableCameras.value[currentCameraIndex.value].device.deviceId
+              : undefined;
+          await startCamera(deviceId);
+        }
       }
-      
-      // Reset camera index to ensure we start with the most appropriate camera
-      currentCameraIndex.value = 0;
-      
-      // Reload video devices with new configuration
-      await loadVideoDevices();
-      
-      // If camera was active, restart it with the new configuration
-      if (showCamera.value) {
-        const deviceId = availableCameras.value.length > 0 
-          ? availableCameras.value[currentCameraIndex.value].device.deviceId 
-          : null;
-        await startCamera(deviceId);
-      }
+    },
+    {
+      deep: true,
+      immediate: false
     }
-  },
-  { 
-    deep: true,
-    immediate: false
-  }
 );
 
 </script>
