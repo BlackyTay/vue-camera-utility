@@ -241,6 +241,12 @@ const applyWatermark = async (
   const { textStyle } = watermarkConfig;
   const fontSize = convertElementSizeToPixels(textStyle.size, canvasHeight);
 
+  if (textStyle.letterSpacing) {
+    ctx.letterSpacing = `${convertElementSizeToPixels(textStyle.letterSpacing, canvasWidth)}px`;
+  }
+
+  const shouldWrapText = textStyle.textWrap !== false; // Default to true if not specified
+
   ctx.font = `${textStyle.fontStyle || 'normal'} ${textStyle.fontWeight || 'normal'} ${fontSize}px ${textStyle.fontFamily || 'Arial, sans-serif'}`;
 
   // Set textBaseline for consistent text positioning
@@ -259,7 +265,7 @@ const applyWatermark = async (
       : textMetrics.actualBoundingBoxDescent || fontSize * 0.2;
 
   // Calculate single line height based on font metrics
-  const lineHeight = ascent + descent;
+  let lineHeight = ascent + descent;
 
   // Get padding values
   const padding = {
@@ -285,8 +291,23 @@ const applyWatermark = async (
       ? convertElementSizeToPixels(watermarkConfig.width, canvasWidth)
       : canvasWidth - margin.left - margin.right;
 
-  // Calculate watermark height with precise padding
-  const watermarkHeight = contentHeight + padding.top + padding.bottom;
+  // Handle explicit height specification if provided
+  let watermarkHeight: number;
+  if (watermarkConfig.height) {
+    // Use the explicitly defined height
+    watermarkHeight = convertElementSizeToPixels(watermarkConfig.height, canvasHeight);
+
+    // Adjust line spacing to fit content within the specified height if needed
+    if (text.length > 1) {
+      // Calculate available space for text after padding
+      const availableHeight = watermarkHeight - padding.top - padding.bottom;
+      // Adjust line height to fit all lines within the available height
+      lineHeight = availableHeight / text.length;
+    }
+  } else {
+    // Calculate based on content
+    watermarkHeight = contentHeight + padding.top + padding.bottom;
+  }
 
   // Calculate watermark position
   let x: number;
@@ -342,12 +363,47 @@ const applyWatermark = async (
     // Use positioning based on index
     const lineY = textY + (index > 0 ? lineHeight * index : 0);
 
-    ctx.fillText(
-        line,
-        textX,
-        lineY,
-        watermarkWidth - padding.left - padding.right
-    );
+    if (!shouldWrapText) {
+      // Don't wrap text - just truncate with ellipsis if it exceeds the width
+      const availableWidth = watermarkWidth - padding.left - padding.right;
+      const ellipsis = '...';
+      const ellipsisWidth = ctx.measureText(ellipsis).width;
+
+      if (ctx.measureText(line).width > availableWidth) {
+        // Text is too long, need to truncate
+        let truncatedText = line;
+        let textWidth = ctx.measureText(truncatedText).width;
+
+        // Truncate until it fits with ellipsis
+        while (textWidth + ellipsisWidth > availableWidth && truncatedText.length > 0) {
+          truncatedText = truncatedText.slice(0, -1);
+          textWidth = ctx.measureText(truncatedText).width;
+        }
+
+        ctx.fillText(
+            truncatedText + ellipsis,
+            textX,
+            lineY,
+            availableWidth
+        );
+      } else {
+        // Text fits, draw normally
+        ctx.fillText(
+            line,
+            textX,
+            lineY,
+            availableWidth
+        );
+      }
+    } else {
+      // Normal drawing with wrapping
+      ctx.fillText(
+          line,
+          textX,
+          lineY,
+          watermarkWidth - padding.left - padding.right
+      );
+    }
   });
 
   // Restore context
