@@ -202,6 +202,10 @@ watch(() => props.show, (isVisible) => {
           {{ previewPhoto.metadata.coordinate.longitude.toFixed(6) }}
         </p>
 
+        <p v-if="previewPhoto.metadata.barcode" class="vcu:text-sm vcu:mb-1">
+          Barcode: {{ previewPhoto.metadata.barcode }}
+        </p>
+
         <p v-if="previewPhoto.metadata.caption" class="vcu:text-sm">
           Caption: {{ previewPhoto.metadata.caption }}
         </p>
