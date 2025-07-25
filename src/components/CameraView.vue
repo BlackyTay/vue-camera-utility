@@ -765,8 +765,10 @@ function setViewportMetaForCamera(enable: boolean) {
 
           <!-- Image preview -->
           <div class="vcu:mb-4 vcu:rounded vcu:overflow-hidden">
-            <img :src="currentCaptionPhoto.src" class="vcu:w-full vcu:h-auto vcu:object-contain vcu:max-h-48"
-                 alt="Preview"/>
+            <img :src="currentCaptionPhoto.src" class="vcu:w-full vcu:h-auto vcu:object-contain vcu:max-h-48 vcu:pointer-events-none vcu:select-none"
+                 alt="Preview"
+                 draggable="false"
+                 aria-role="presentation"/>
           </div>
 
           <!-- Caption input -->
