@@ -123,19 +123,33 @@ const scanBarcode = async () => {
     throw new Error("Camera not accessible: Video dimensions not available");
   }
 
-  const formats: BarcodeFormat[] | undefined =
-      mergedConfig.value.extra.scanner?.formats || undefined;
+  try {
+    const formats: BarcodeFormat[] | undefined =
+        mergedConfig.value.extra.scanner?.formats || undefined;
 
-  const result = await scanBarcodeUntilFound(
-      videoRef.value,
-      formats
-  );
+    const result = await scanBarcodeUntilFound(
+        videoRef.value,
+        formats
+    );
 
-  if (!result) {
-    throw new Error("Barcode detection timed out");
+    if (!result) {
+      const error = new Error("Barcode detection timed out");
+      if (mergedConfig.value.extra.scanner?.onError) {
+        mergedConfig.value.extra.scanner.onError(error);
+      }
+    }
+
+    if (mergedConfig.value.extra.scanner?.onResult) {
+      mergedConfig.value.extra.scanner.onResult(result);
+    }
+
+    return result;
+  } catch (error) {
+    if (mergedConfig.value.extra.scanner?.onError && error instanceof Error) {
+      mergedConfig.value.extra.scanner.onError(error);
+    }
+    throw error;
   }
-
-  return result;
 };
 
 
