@@ -29,7 +29,7 @@ const defaultConfig: CameraViewConfig = {
       maxPhotos: 10,
       maxSelected: 5,
       preview: true,
-    }
+    },
   }
 }
 
@@ -62,9 +62,14 @@ const currentCameraIndex = ref(0)
 
 const cameraReady = ref(false)
 
+// Captions
+const showCaptionModal = ref(false)
+const currentCaptionPhoto = ref<CapturedPhoto | null>(null)
+const captionInput = ref('')
+
 let resolveFn: ((value: CapturedPhoto[]) => void) | null = null
 
-const open = async (): Promise<CapturedPhoto[] | null> => {
+const open = async (): Promise<CapturedPhoto[] | void> => {
   cameraMode.value = mergedConfig.value.cameraConfig.cameraMode
   try {
     if (mergedConfig.value.extra.geolocation) {
@@ -77,14 +82,13 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
 
     if (cameraMode.value === 'barcode') {
       try {
-        const barcode = await scanBarcode()
-        const photo = await takePhoto(barcode ?? undefined)
-        closeCamera([photo])
-        return [photo];
+        const barcode = await scanBarcodeWhenReady(5000)
+        await capture(barcode ?? undefined)
       } catch (error) {
-        console.error('Barcode scan failed', error)
+        console.log('Barcode scan failed', error)
+        alert(typeof error === 'string' ? error :
+            (error instanceof Error ? error.message : 'Barcode scan failed with unexpected error.'))
         closeCamera([])
-        return [];
       }
     }
 
@@ -93,8 +97,7 @@ const open = async (): Promise<CapturedPhoto[] | null> => {
     })
   } catch (error) {
     alert(typeof error === 'string' ? error :
-        (error instanceof Error ? error.message : 'Unexpected error.'))
-    return null
+        (error instanceof Error ? error.message : 'Camera open failed with unexpected error.'))
   }
 }
 
@@ -107,7 +110,18 @@ const closeCamera = (selected: CapturedPhoto[]) => {
 }
 
 const scanBarcode = async () => {
-  if (!videoRef.value) throw new Error("Camera not accessible");
+  // More detailed validation of video element
+  if (!videoRef.value) {
+    throw new Error("Camera not accessible: Video element not found");
+  }
+
+  if (videoRef.value.readyState < 2) {
+    throw new Error("Camera not ready: Video is still loading");
+  }
+
+  if (videoRef.value.videoWidth === 0 || videoRef.value.videoHeight === 0) {
+    throw new Error("Camera not accessible: Video dimensions not available");
+  }
 
   const formats: BarcodeFormat[] | undefined =
       mergedConfig.value.extra.scanner?.formats || undefined;
@@ -122,9 +136,61 @@ const scanBarcode = async () => {
   }
 
   return result;
-}
+};
+
+
+/**
+ * Waits for the video element to be ready before scanning for barcodes
+ * @param maxWaitTime Maximum time to wait in milliseconds
+ * @param checkInterval Interval between checks in milliseconds
+ */
+const scanBarcodeWhenReady = async (maxWaitTime = 10000, checkInterval = 100): Promise<string | undefined> => {
+  return new Promise((resolve) => {
+    // Track total time waited
+    let timeWaited = 0;
+
+    // Create an interval to check if video is ready
+    const checkVideoReady = setInterval(async () => {
+      // Check if we've exceeded max wait time
+      if (timeWaited >= maxWaitTime) {
+        clearInterval(checkVideoReady);
+        throw new Error('[Scanner] Timed out waiting for video to be ready');
+      }
+
+      // Check if video is available and has dimensions
+      if (videoRef.value &&
+          videoRef.value.readyState >= 2 &&
+          videoRef.value.videoWidth > 0 &&
+          videoRef.value.videoHeight > 0) {
+
+        console.log('[Scanner] Video is ready');
+        clearInterval(checkVideoReady);
+
+        try {
+          // Video is ready, attempt to scan barcode
+          const result = await scanBarcode();
+
+          if (!result) {
+            console.warn('Barcode detection timed out');
+            resolve(undefined);
+            return;
+          }
+
+          resolve(result);
+        } catch (error) {
+          console.error('Barcode scan failed:', error);
+          alert(error instanceof Error ? error.message : 'Barcode scan failed');
+        }
+      } else {
+        // Increment time waited
+        timeWaited += checkInterval;
+      }
+    }, checkInterval);
+  });
+};
+
 const takePhoto = async (barcode?: string) => {
-  if (!videoRef.value || !canvasRef.value) throw new Error("Unexpected error");
+  if (!videoRef.value || !canvasRef.value) throw new Error("Camera not accessible: Video or canvas element not found");
 
   const ctx = canvasRef.value.getContext('2d')
 
@@ -146,6 +212,7 @@ const takePhoto = async (barcode?: string) => {
       longitude = position.coords.longitude
     } catch (e) {
       console.warn('Geolocation failed', e)
+      alert(e instanceof Error ? 'Geolocation failed' + e.message : 'Geolocation failed')
     }
   }
 
@@ -168,11 +235,27 @@ const takePhoto = async (barcode?: string) => {
 }
 
 const capture = async (barcode?: string) => {
+  console.log('[capture] barcode', barcode)
   const capturedPhoto = await takePhoto(barcode ?? undefined)
-  if (mergedConfig.value.cameraConfig.cameraMode === 'single-photo') {
-    closeCamera([capturedPhoto])
+
+  // Check if caption is enabled in config
+  if (mergedConfig.value.extra.caption) {
+    // Store the photo reference and show caption modal
+    currentCaptionPhoto.value = capturedPhoto
+    captionInput.value = '' // Reset input
+    showCaptionModal.value = true
+  } else {
+    // No caption config, proceed as normal
+    finalizeCapture(capturedPhoto)
   }
-  capturedPhotos.value.push(capturedPhoto)
+}
+
+const finalizeCapture = (photo: CapturedPhoto) => {
+  if (mergedConfig.value.cameraConfig.cameraMode === 'single-photo'
+      || mergedConfig.value.cameraConfig.cameraMode === 'barcode') {
+    closeCamera([photo])
+  }
+  capturedPhotos.value.push(photo)
 }
 
 const confirmGallery = (selected: CapturedPhoto[]) => closeCamera(selected)
@@ -308,6 +391,7 @@ const loadVideoDevices = async () => {
     showGalleryButton.value = mergedConfig.value.cameraConfig.cameraMode === 'multiple-photos'
   } catch (error) {
     console.error('Error loading video devices:', error);
+    alert(error instanceof Error ? error.message : 'Error loading video devices.');
     videoDevices.value = [];
     availableCameras.value = [];
   }
@@ -333,6 +417,25 @@ const startCamera = async (deviceId?: string) => {
     console.log('Starting camera:', deviceId)
     if (cameraReady.value) {
       await initCamera(deviceId)
+
+      // Add this: Wait for video to be fully initialized
+      if (videoRef.value) {
+        // Create a promise that resolves when the video is ready
+        await new Promise<void>((resolve) => {
+          const checkVideoReady = () => {
+            if (videoRef.value &&
+                videoRef.value.readyState >= 2 &&
+                videoRef.value.videoWidth > 0 &&
+                videoRef.value.videoHeight > 0) {
+              resolve();
+            } else {
+              requestAnimationFrame(checkVideoReady);
+            }
+          };
+          checkVideoReady();
+        });
+        console.log('Video is ready')
+      }
     } else {
       showCamera.value = false
       // First, request basic camera access with minimal constraints
@@ -352,7 +455,7 @@ const startCamera = async (deviceId?: string) => {
         await loadVideoDevices();
 
         await startCamera(deviceId);
-      }, 1000)
+      }, 500)
 
       cameraReady.value = true;
     }
@@ -409,6 +512,29 @@ const initCamera = async (deviceId?: string) => {
 const stopCamera = () => {
   const stream = videoRef.value?.srcObject as MediaStream
   stream?.getTracks().forEach((track) => track.stop())
+}
+
+// Caption
+const saveCaption = () => {
+  if (currentCaptionPhoto.value) {
+    // Add caption to photo metadata
+    currentCaptionPhoto.value.metadata.caption = captionInput.value.trim()
+
+    // Finalize capture with caption
+    finalizeCapture(currentCaptionPhoto.value)
+
+    // Reset and hide modal
+    currentCaptionPhoto.value = null
+    showCaptionModal.value = false
+  }
+}
+
+const skipCaption = () => {
+  if (currentCaptionPhoto.value) {
+    finalizeCapture(currentCaptionPhoto.value)
+    currentCaptionPhoto.value = null
+    showCaptionModal.value = false
+  }
 }
 
 defineExpose({open})
@@ -495,11 +621,11 @@ watch(showCamera, (isVisible) => {
     resetZoomLevel();
 
     // Add event listeners to prevent zoom
-    document.addEventListener('touchstart', preventZoomGesture, { passive: false });
-    document.addEventListener('touchmove', preventZoomGesture, { passive: false });
-    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
-    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
-    document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('touchstart', preventZoomGesture, {passive: false});
+    document.addEventListener('touchmove', preventZoomGesture, {passive: false});
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), {passive: false});
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), {passive: false});
+    document.addEventListener('gestureend', (e) => e.preventDefault(), {passive: false});
 
     // For iOS 15+ double-tap prevention
     (document.documentElement.style as any)['-webkit-touch-callout'] = 'none';
@@ -553,15 +679,15 @@ function setViewportMetaForCamera(enable: boolean) {
     viewportMeta.setAttribute('name', 'viewport');
     document.head.appendChild(viewportMeta);
   }
-  
+
   if (enable) {
     // When camera is active: Prevent zoom, set initial scale
-    viewportMeta.setAttribute('content', 
-      'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    viewportMeta.setAttribute('content',
+        'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
   } else {
     // When camera is inactive: Restore normal behavior
-    viewportMeta.setAttribute('content', 
-      'width=device-width, initial-scale=1.0');
+    viewportMeta.setAttribute('content',
+        'width=device-width, initial-scale=1.0');
   }
 }
 </script>
@@ -595,7 +721,8 @@ function setViewportMetaForCamera(enable: boolean) {
         <!-- Gallery Button -->
         <button v-if="capturedPhotos.length > 0 && showGalleryButton" @click="showGallery = true"
                 class="vcu:w-16 vcu:h-16 vcu:border-2 vcu:border-white vcu:dark:border-white vcu:overflow-hidden vcu:bg-transparent vcu:dark:bg-transparent vcu:text-white vcu:dark:text-white">
-          <img :src="capturedPhotos[capturedPhotos.length - 1].src" class="vcu:w-full vcu:h-full vcu:object-cover vcu:pointer-events-none vcu:select-none"
+          <img :src="capturedPhotos[capturedPhotos.length - 1].src"
+               class="vcu:w-full vcu:h-full vcu:object-cover vcu:pointer-events-none vcu:select-none"
                alt="Thumbnail"
                draggable="false"
                aria-role="presentation"
@@ -622,7 +749,6 @@ function setViewportMetaForCamera(enable: boolean) {
 
       </div>
 
-
       <!-- Gallery Preview -->
       <GalleryView
           :photos="capturedPhotos"
@@ -630,6 +756,54 @@ function setViewportMetaForCamera(enable: boolean) {
           :config="props.config?.extra.gallery"
           @close="cancelGallery"
           @confirm="confirmGallery"/>
+
+      <!-- Caption Modal -->
+      <div v-if="showCaptionModal && currentCaptionPhoto"
+           class="vcu:fixed vcu:inset-0 vcu:z-[60] vcu:bg-black vcu:bg-opacity-80 vcu:flex vcu:items-center vcu:justify-center vcu:p-4">
+        <div class="vcu:bg-gray-800 vcu:rounded-lg vcu:max-w-md vcu:w-full vcu:p-4 vcu:shadow-lg">
+          <h3 class="vcu:text-xl vcu:text-white vcu:mb-4">Add Caption</h3>
+
+          <!-- Image preview -->
+          <div class="vcu:mb-4 vcu:rounded vcu:overflow-hidden">
+            <img :src="currentCaptionPhoto.src" class="vcu:w-full vcu:h-auto vcu:object-contain vcu:max-h-48"
+                 alt="Preview"/>
+          </div>
+
+          <!-- Caption input -->
+          <div class="vcu:mb-4">
+            <input
+                v-model="captionInput"
+                type="text"
+                class="vcu:w-full vcu:p-2 vcu:bg-gray-700 vcu:text-white vcu:rounded vcu:border vcu:border-gray-600 vcu:focus:outline-none vcu:focus:border-blue-500"
+                :placeholder="mergedConfig.extra.caption?.placeholder || 'Add a caption...'"
+                :maxlength="mergedConfig.extra.caption?.maxLength || 100"
+                @keyup.enter="saveCaption"
+            />
+            <div class="vcu:text-xs vcu:text-gray-400 vcu:mt-1" v-if="mergedConfig.extra.caption?.maxLength">
+              {{ captionInput.length }}/{{ mergedConfig.extra.caption.maxLength }}
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="vcu:flex vcu:justify-end vcu:space-x-2">
+            <button
+                v-if="mergedConfig.extra.caption?.optional"
+                @click="skipCaption"
+                class="vcu:px-4 vcu:py-2 vcu:bg-gray-600 vcu:text-white vcu:rounded vcu:hover:bg-gray-700">
+              Skip
+            </button>
+            <button
+                @click="saveCaption"
+                :disabled="!captionInput.trim()"
+                class="vcu:px-4 vcu:py-2 vcu:text-white vcu:rounded"
+                :class="captionInput.trim()
+                ? 'vcu:bg-blue-600 vcu:hover:bg-blue-700'
+                : 'vcu:bg-gray-400 vcu:cursor-not-allowed'">
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- Canvas -->
       <canvas ref="canvasRef" class="vcu:hidden"></canvas>
