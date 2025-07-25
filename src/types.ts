@@ -69,7 +69,7 @@ export interface CaptionConfig {
 
 export interface ScannerConfig {
     formats: BarcodeFormat[]
-    onResult: (result: string) => void
+    onResult: (result: string | null) => void
     onError?: (error: Error) => void
 }
 
