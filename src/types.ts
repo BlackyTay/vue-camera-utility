@@ -98,7 +98,7 @@ export interface ImageConfig {
 
     // Processing hooks
     beforeProcess?: (imageData: ImageData) => Promise<ImageData> | ImageData
-    afterProcess?: (result: string) => Promise<string> | string
+    afterProcess?: (imageData: ImageData) => Promise<ImageData> | ImageData
 }
 
 export interface ImageTransform {
@@ -144,6 +144,8 @@ export type WatermarkValue =
     | string[]
     | { type: 'function', getter: () => string | Promise<string> }
     | { type: 'arrayFunction', getter: () => string[] | Promise<string[]> }
+
+export type MetadataType = 'timestamp' | 'coordinate' | 'barcode' | 'caption'
 
 export interface TextStyle {
     color: string // CSS color value (hex, rgb, rgba, etc.)

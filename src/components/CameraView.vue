@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import type {CameraMode, CameraViewConfig, CapturedPhoto} from '@/types'
+import type {CameraMode, CameraViewConfig, CapturedPhoto, PhotoMetadata} from '@/types'
 import {getGeolocation} from '@/utils/geolocation'
 import GalleryView from './GalleryView.vue';
 import {scanBarcodeUntilFound} from '@/utils/barcode';
 import Base from "@/components/Base.vue";
+import {processImageInPlace} from "@/utils/image";
 
 const props = defineProps<{
   config?: CameraViewConfig
@@ -207,15 +208,11 @@ const takePhoto = async (barcode?: string) => {
   if (!videoRef.value || !canvasRef.value) throw new Error("Camera not accessible: Video or canvas element not found");
 
   const ctx = canvasRef.value.getContext('2d')
+  if (!ctx) throw new Error("Camera not accessible: Canvas context not found");
 
   canvasRef.value.width = videoRef.value.videoWidth
   canvasRef.value.height = videoRef.value.videoHeight
-  ctx?.drawImage(videoRef.value, 0, 0)
-
-  const imageType = mergedConfig.value.imageConfig?.imageType ?? 'image/jpeg'
-  const imageQuality = imageType === 'image/jpeg' ? mergedConfig.value.imageConfig?.imageQuality : undefined
-
-  const base64 = canvasRef.value.toDataURL(imageType, imageQuality)
+  ctx.drawImage(videoRef.value, 0, 0)
 
   let latitude: number | undefined = undefined
   let longitude: number | undefined = undefined
@@ -227,22 +224,35 @@ const takePhoto = async (barcode?: string) => {
     } catch (e) {
       console.warn('Geolocation failed', e)
       alert(e instanceof Error ? 'Geolocation failed' + e.message : 'Geolocation failed')
+      closeCamera([]);
+    }
+  }
+  const metadata: PhotoMetadata = {
+    timestamp: new Date().toISOString(),
+    coordinate: {
+      latitude,
+      longitude,
+    },
+  }
+  if (barcode) {
+    metadata.barcode = barcode;
+  }
+
+  if (mergedConfig.value.imageConfig) {
+    try {
+      await processImageInPlace(canvasRef.value, ctx, mergedConfig.value.imageConfig, metadata);
+    } catch (error) {
+      console.error('Error processing image:', error);
     }
   }
 
+  const imageType = mergedConfig.value.imageConfig?.imageType ?? 'image/jpeg'
+  const imageQuality = imageType === 'image/jpeg' ? mergedConfig.value.imageConfig?.imageQuality : undefined
+  const base64 = canvasRef.value.toDataURL(imageType, imageQuality)
+
   const capturedPhoto: CapturedPhoto = {
     src: base64,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      coordinate: {
-        latitude,
-        longitude,
-      },
-    },
-  }
-
-  if (barcode) {
-    capturedPhoto.metadata.barcode = barcode
+    metadata
   }
 
   return capturedPhoto
