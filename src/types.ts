@@ -60,8 +60,9 @@ export interface GalleryConfig {
 }
 
 export interface CaptionConfig {
-    placeholder: string
-    maxLength: number
+    placeholder?: string
+    maxLength?: number
+    optional?: boolean
 }
 
 // ========== Barcode Scanner Types ==========
