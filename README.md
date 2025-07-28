@@ -36,7 +36,7 @@ npm install vue-camera-utility
 
 <script setup lang="ts">
   import {ref} from 'vue'
-  import CameraView from 'vue-camera-utility'
+  import {CameraView} from 'vue-camera-utility'
 
   const camera = ref()
   const photos = ref([])
