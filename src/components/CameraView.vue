@@ -11,6 +11,15 @@ const props = defineProps<{
   config?: CameraViewConfig
 }>()
 
+/**
+ * Emitted when the camera is fully initialized and ready to use
+ * @event camera-ready
+ * @param {boolean} status - true when the camera is ready
+ */
+const emit = defineEmits<{
+  'camera-ready': [status: boolean]
+}>()
+
 const defaultConfig: CameraViewConfig = {
   cameraConfig: {
     cameraMode: 'multiple-photos',
@@ -178,6 +187,7 @@ const scanBarcodeWhenReady = async (maxWaitTime = 10000, checkInterval = 100): P
           videoRef.value.videoWidth > 0 &&
           videoRef.value.videoHeight > 0) {
 
+        emit('camera-ready', true);
         console.log('[Scanner] Video is ready');
         clearInterval(checkVideoReady);
 
@@ -458,7 +468,8 @@ const startCamera = async (deviceId?: string) => {
           };
           checkVideoReady();
         });
-        console.log('Video is ready')
+        console.log('Video is ready');
+        emit('camera-ready', true);
       }
     } else {
       showCamera.value = false
