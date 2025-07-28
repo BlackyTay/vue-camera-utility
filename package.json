@@ -26,6 +26,7 @@
   "files": [
     "dist"
   ],
+
   "scripts": {
     "build:dev": "vite build --mode development && vue-tsc --emitDeclarationOnly",
     "build:prod": "vite build --mode production && vue-tsc --emitDeclarationOnly",
@@ -33,14 +34,26 @@
     "watch": "vite build --watch --mode development",
     "prepublishOnly": "npm run build:prod"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlackyTay/vue-camera-utility.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BlackyTay/vue-camera-utility/issues"
+  },
+  "homepage": "https://github.com/BlackyTay/vue-camera-utility#readme",
   "keywords": [
     "camera",
     "vue3",
     "scanner",
     "barcode",
-    "qr"
+    "qr",
+    "vue",
+    "webcam",
+    "ios",
+    "android"
   ],
-  "author": "Tay Zheng Qiang",
+  "author": "Tay Zheng Qiang <tay@outlook.my>",
   "license": "ISC",
   "peerDependencies": {
     "vue": "^3.5.18"
