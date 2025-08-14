@@ -90,6 +90,11 @@ const open = async (): Promise<CapturedPhoto[] | void> => {
 
     await startCamera(availableCameras.value.length > 0 ? availableCameras.value[currentCameraIndex.value].device.deviceId : undefined)
 
+    // Create the Promise first, before any other operations
+    const promise = new Promise<CapturedPhoto[]>((resolve) => {
+      resolveFn = resolve
+    })
+
     if (cameraMode.value === 'barcode') {
       try {
         const barcode = await scanBarcodeWhenReady(5000)
@@ -102,9 +107,7 @@ const open = async (): Promise<CapturedPhoto[] | void> => {
       }
     }
 
-    return new Promise((resolve) => {
-      resolveFn = resolve
-    })
+    return promise
   } catch (error) {
     alert(typeof error === 'string' ? error :
         (error instanceof Error ? error.message : 'Camera open failed with unexpected error.'))
@@ -112,11 +115,17 @@ const open = async (): Promise<CapturedPhoto[] | void> => {
 }
 
 const closeCamera = (selected: CapturedPhoto[]) => {
+  console.log('[closeCamera]', selected);
   stopCamera()
   showCamera.value = false
   showGallery.value = false
-  resolveFn?.(selected)
-  resolveFn = null
+  if (resolveFn) {
+    console.log('[closeCamera] Resolving promise');
+    resolveFn(selected)
+    resolveFn = null
+  } else {
+    console.log('[closeCamera] No resolver function available');
+  }
 }
 
 const scanBarcode = async () => {
@@ -285,6 +294,7 @@ const capture = async (barcode?: string) => {
 }
 
 const finalizeCapture = (photo: CapturedPhoto) => {
+  console.log('[finalizeCapture] photo', photo)
   if (mergedConfig.value.cameraConfig.cameraMode === 'single-photo'
       || mergedConfig.value.cameraConfig.cameraMode === 'barcode') {
     closeCamera([photo])
