@@ -1,7 +1,7 @@
 {
   "name": "vue-camera-utility",
   "type": "module",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A Vue 3 camera utility package for photo capture, QR code and barcode scanning.",
   "maintainers": [
     {
@@ -26,7 +26,6 @@
   "files": [
     "dist"
   ],
-
   "scripts": {
     "build:dev": "vite build --mode development && vue-tsc --emitDeclarationOnly",
     "build:prod": "vite build --mode production && vue-tsc --emitDeclarationOnly",
