@@ -1,6 +1,6 @@
 # Vue Camera Utility
 
-[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](https://www.npmjs.com/package/vue-camera-utility)
+[![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)](https://www.npmjs.com/package/vue-camera-utility)
 [![License](https://img.shields.io/badge/license-ISC-green.svg)](https://opensource.org/licenses/ISC)
 
 A lightweight Vue 3 component for camera access, photo capture, barcode scanning, and image selection. Ideal for web
